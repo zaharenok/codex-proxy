@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.env
+.playwright-mcp/
+*.log
+reasoning_store.json
+last_request.json
+*.egg-info/
+dist/
+build/
+*.bak-*
