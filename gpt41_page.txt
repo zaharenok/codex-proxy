@@ -1,0 +1,155 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - link "Skip to content" [ref=e4] [cursor=pointer]:
+      - /url: "#start-of-content"
+    - banner [ref=e6]:
+      - heading "Navigation Menu" [level=2] [ref=e7]
+      - generic [ref=e8]:
+        - link "Homepage" [ref=e10] [cursor=pointer]:
+          - /url: /
+          - img [ref=e11]
+        - generic [ref=e13]:
+          - navigation "Global" [ref=e16]:
+            - list [ref=e17]:
+              - listitem [ref=e18]:
+                - button "Platform" [ref=e20] [cursor=pointer]:
+                  - text: Platform
+                  - img [ref=e21]
+              - listitem [ref=e23]:
+                - button "Solutions" [ref=e25] [cursor=pointer]:
+                  - text: Solutions
+                  - img [ref=e26]
+              - listitem [ref=e28]:
+                - button "Resources" [ref=e30] [cursor=pointer]:
+                  - text: Resources
+                  - img [ref=e31]
+              - listitem [ref=e33]:
+                - button "Open Source" [ref=e35] [cursor=pointer]:
+                  - text: Open Source
+                  - img [ref=e36]
+              - listitem [ref=e38]:
+                - button "Enterprise" [ref=e40] [cursor=pointer]:
+                  - text: Enterprise
+                  - img [ref=e41]
+              - listitem [ref=e43]:
+                - link "Pricing" [ref=e44] [cursor=pointer]:
+                  - /url: https://github.com/pricing
+                  - generic [ref=e45]: Pricing
+          - generic [ref=e46]:
+            - button "Search or jump to…" [ref=e49] [cursor=pointer]:
+              - img [ref=e51]
+            - link "Sign in" [ref=e54] [cursor=pointer]:
+              - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fsearch%3Fq%3Drepo%253Aopenai%252Fcodex%2BOPENAI_BASE_URL%26type%3Dcode
+            - link "Sign up" [ref=e55] [cursor=pointer]:
+              - /url: /signup?ref_cta=Sign+up&ref_loc=header+logged+out&ref_page=%2Fsearch&source=header
+            - button "Appearance settings" [ref=e58] [cursor=pointer]:
+              - img
+  - main [ref=e61]:
+    - generic [ref=e64]:
+      - heading "code Search Results · repo:openai/codex OPENAI_BASE_URL" [level=1] [ref=e65]
+      - generic [ref=e68]:
+        - generic [ref=e69]:
+          - generic [ref=e70]:
+            - heading "Filter by" [level=2] [ref=e71]
+            - list "Filter by" [ref=e76]:
+              - listitem [ref=e77]:
+                - list [ref=e78]:
+                  - listitem [ref=e79]:
+                    - link "Code (...) results" [ref=e142] [cursor=pointer]:
+                      - /url: https://github.com/search?q=repo%3Aopenai%2Fcodex+OPENAI_BASE_URL&type=code
+                      - generic:
+                        - img
+                      - generic [ref=e143]:
+                        - generic [ref=e144]: Code
+                        - generic:
+                          - generic: ...
+                          - generic: (...)
+                          - generic: results
+                  - listitem [ref=e83]:
+                    - link "Issues (52) results" [ref=e145] [cursor=pointer]:
+                      - /url: https://github.com/search?q=repo%3Aopenai%2Fcodex+OPENAI_BASE_URL&type=issues
+                      - generic:
+                        - img
+                      - generic [ref=e146]:
+                        - generic [ref=e147]: Issues
+                        - generic:
+                          - generic: "52"
+                          - generic: (52)
+                          - generic: results
+                  - listitem [ref=e87]:
+                    - link "Pull requests (19) results" [ref=e148] [cursor=pointer]:
+                      - /url: https://github.com/search?q=repo%3Aopenai%2Fcodex+OPENAI_BASE_URL&type=pullrequests
+                      - generic:
+                        - img
+                      - generic [ref=e149]:
+                        - generic [ref=e150]: Pull requests
+                        - generic:
+                          - generic: "19"
+                          - generic: (19)
+                          - generic: results
+                  - listitem [ref=e91]:
+                    - link "Discussions (1) results" [ref=e151] [cursor=pointer]:
+                      - /url: https://github.com/search?q=repo%3Aopenai%2Fcodex+OPENAI_BASE_URL&type=discussions
+                      - generic:
+                        - img
+                      - generic [ref=e152]:
+                        - generic [ref=e153]: Discussions
+                        - generic:
+                          - generic: "1"
+                          - generic: (1)
+                          - generic: results
+                  - listitem [ref=e95]:
+                    - link "Commits (34) results" [ref=e154] [cursor=pointer]:
+                      - /url: https://github.com/search?q=repo%3Aopenai%2Fcodex+OPENAI_BASE_URL&type=commits
+                      - generic:
+                        - img
+                      - generic [ref=e155]:
+                        - generic [ref=e156]: Commits
+                        - generic:
+                          - generic: "34"
+                          - generic: (34)
+                          - generic: results
+                  - listitem [ref=e99]:
+                    - link "Packages (0) results" [ref=e157] [cursor=pointer]:
+                      - /url: https://github.com/search?q=repo%3Aopenai%2Fcodex+OPENAI_BASE_URL&type=registrypackages
+                      - generic:
+                        - img
+                      - generic [ref=e158]:
+                        - generic [ref=e159]: Packages
+                        - generic:
+                          - generic: "0"
+                          - generic: (0)
+                          - generic: results
+                  - listitem [ref=e103]:
+                    - link "Wikis (0) results" [ref=e160] [cursor=pointer]:
+                      - /url: https://github.com/search?q=repo%3Aopenai%2Fcodex+OPENAI_BASE_URL&type=wikis
+                      - generic:
+                        - img
+                      - generic [ref=e161]:
+                        - generic [ref=e162]: Wikis
+                        - generic:
+                          - generic: "0"
+                          - generic: (0)
+                          - generic: results
+              - listitem [ref=e107]
+              - listitem [ref=e108]:
+                - link "Advanced search" [ref=e109] [cursor=pointer]:
+                  - /url: /search/advanced
+                  - generic:
+                    - img
+                  - generic [ref=e111]: Advanced search
+          - slider "Draggable pane splitter" [ref=e113]
+        - generic [ref=e117]:
+          - button "Open column options" [ref=e122] [cursor=pointer]:
+            - img [ref=e123]
+          - generic [ref=e127]:
+            - img "Mona looking through a globe hologram for code" [ref=e129]
+            - generic [ref=e130]: Sign in to search code on GitHub
+            - generic [ref=e131]: Before you can access our code search functionality please sign in or create a free account.
+            - generic [ref=e132]:
+              - link "Sign in" [ref=e133] [cursor=pointer]:
+                - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fsearch%3Fq%3Drepo%253Aopenai%252Fcodex%2BOPENAI_BASE_URL%26type%3Dcode
+                - generic [ref=e135]: Sign in
+              - link "Sign up" [ref=e136] [cursor=pointer]:
+                - /url: /signup?source=code_search_results
+                - generic [ref=e138]: Sign up

@@ -59,15 +59,6 @@ PRESETS: dict[str, dict] = {
             "gpt-4o-mini": "deepseek-v4-flash",
         },
     },
-    "GLM-5.1 (Zhipu)": {
-        "url": "https://open.bigmodel.cn/api/paas/v4",
-        "models": {
-            "gpt-5.4": "glm-5.1",
-            "gpt-5.4-mini": "glm-5.1-flash",
-            "gpt-4o": "glm-5.1",
-            "gpt-4o-mini": "glm-5.1-flash",
-        },
-    },
     "OpenRouter": {
         "url": "https://openrouter.ai/api/v1",
         "models": {
@@ -75,14 +66,14 @@ PRESETS: dict[str, dict] = {
             "gpt-5.4-mini": "deepseek/deepseek-chat-v3-0324",
         },
     },
-    "z.ai (Anthropic)": {
+    "z.ai": {
         "url": "https://api.z.ai/api/anthropic",
         "api_type": "anthropic",
         "models": {
             "gpt-5.4": "claude-sonnet-4-20250514",
-            "gpt-5.4-mini": "claude-haiku-4-5-20251001",
+            "gpt-5.4-mini": "glm-5.1",
             "gpt-4o": "claude-sonnet-4-20250514",
-            "gpt-4o-mini": "claude-haiku-4-5-20251001",
+            "gpt-4o-mini": "glm-5.1",
         },
     },
 }

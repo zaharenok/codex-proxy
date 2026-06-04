@@ -19,13 +19,14 @@ API_KEY_FILE = CONFIG_DIR / ".api_key"
 CODEX_CONFIG = Path.home() / ".codex" / "config.toml"
 
 DEFAULT_SETTINGS = {
-    "preset": "DeepSeek V4 Pro",
-    "upstream": "https://api.deepseek.com",
+    "preset": "z.ai",
+    "upstream": "https://api.z.ai/api/anthropic",
     "port": 9090,
     "host": "127.0.0.1",
+    "api_type": "anthropic",
     "model_map": {
-        "gpt-5.4": "deepseek-v4-pro",
-        "gpt-5.4-mini": "deepseek-v4-flash",
+        "gpt-5.4": "claude-sonnet-4-20250514",
+        "gpt-5.4-mini": "glm-5.1",
     },
 }
 
