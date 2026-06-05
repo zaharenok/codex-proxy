@@ -1021,7 +1021,17 @@ def handle():
         if cc_tools:
             cc["tools"] = cc_tools
         if body.get("tool_choice"):
-            cc["tool_choice"] = body["tool_choice"]
+            tc = body["tool_choice"]
+            # Anthropic requires tool_choice as dict, not string
+            if isinstance(tc, str):
+                if tc == "auto":
+                    cc["tool_choice"] = {"type": "auto"}
+                elif tc == "required":
+                    cc["tool_choice"] = {"type": "any"}
+                elif tc == "none":
+                    pass  # omit tool_choice
+            else:
+                cc["tool_choice"] = tc
         for k in ("temperature", "top_p"):
             if k in body:
                 cc[k] = body[k]
