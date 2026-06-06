@@ -5,7 +5,7 @@
     <key>CFBundleDisplayName</key>
     <string>CodexProxy</string>
     <key>CFBundleExecutable</key>
-    <string>CodexProxyMenuBar</string>
+    <string>CodexProxy</string>
     <key>CFBundleIdentifier</key>
     <string>com.codexproxy.menuapp</string>
     <key>CFBundleName</key>

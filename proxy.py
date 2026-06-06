@@ -66,8 +66,39 @@ PRESETS: dict[str, dict] = {
             "gpt-5.4-mini": "deepseek/deepseek-chat-v3-0324",
         },
     },
+    "MiniMax": {
+        "url": "https://api.minimax.chat/v1",
+        "models": {
+            "gpt-5.4": "minimax-text-01",
+            "gpt-5.4-mini": "minimax-m2",
+            "gpt-4o": "minimax-text-01",
+            "gpt-4o-mini": "minimax-m2",
+        },
+    },
+    "OpenCode": {
+        "url": "https://opencode.ai/ru/go",
+        "models": {
+            "gpt-5.4": "deepseek/deepseek-chat-v3-0324",
+            "gpt-5.4-mini": "deepseek/deepseek-chat-v3-0324",
+        },
+    },
+    "LM Studio": {
+        "url": "http://localhost:1234/v1",
+        "models": {
+            "gpt-5.4": "local-model",
+            "gpt-5.4-mini": "local-model",
+        },
+    },
+    "Ollama": {
+        "url": "http://localhost:11434/v1",
+        "models": {
+            "gpt-5.4": "local-model",
+            "gpt-5.4-mini": "local-model",
+        },
+    },
     "z.ai": {
         "url": "https://api.z.ai/api/anthropic",
+        "models_url": "https://api.z.ai/api/anthropic/v1",
         "api_type": "anthropic",
         "models": {
             "gpt-5.4": "claude-sonnet-4-20250514",
@@ -451,6 +482,7 @@ def _stream_anthropic(cc_body: dict, headers: dict, model: str):
                 log.error("ANTHROPIC UPSTREAM %d: %s", r.status_code, r.text[:500])
             r.raise_for_status()
 
+            r.encoding = 'utf-8'
             created = int(time.time())
             full_text = ""
             tool_calls_acc: list[dict] = []
@@ -591,10 +623,19 @@ def _stream_anthropic(cc_body: dict, headers: dict, model: str):
         except Exception as e:
             log.error("ANTHROPIC STREAM: %s\n%s", e, traceback.format_exc())
             yield _sse("error", {"type": "server_error", "message": str(e)})
+            yield _sse("response.completed", {
+                "type": "response.completed",
+                "response": {
+                    "id": resp_id, "object": "response", "created_at": int(time.time()),
+                    "model": model, "status": "failed", "output": [],
+                    "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+                    "metadata": {},
+                },
+            })
 
     return Response(
         stream_with_context(gen()),
-        content_type="text/event-stream",
+        content_type="text/event-stream; charset=utf-8",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
     )
 
@@ -676,6 +717,7 @@ def _stream(cc: dict, headers: dict, model: str):
                 log.error("UPSTREAM %d: %s", r.status_code, r.text[:500])
             r.raise_for_status()
 
+            r.encoding = 'utf-8'
             created = int(time.time())
             full_text = ""
             full_reasoning = ""
@@ -968,17 +1010,21 @@ def _stream(cc: dict, headers: dict, model: str):
         except Exception as e:
             log.error("STREAM ERROR: %s\n%s", e, traceback.format_exc())
             yield _sse("error", {"type": "server_error", "message": str(e)})
+            yield _sse("response.completed", {
+                "type": "response.completed",
+                "response": {
+                    "id": resp_id, "object": "response", "created_at": int(time.time()),
+                    "model": model, "status": "failed", "output": [],
+                    "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+                    "metadata": {},
+                },
+            })
 
     return Response(
         stream_with_context(gen()),
-        content_type="text/event-stream",
+        content_type="text/event-stream; charset=utf-8",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
     )
-
-
-# ---------------------------------------------------------------------------
-# Flask routes
-# ---------------------------------------------------------------------------
 
 
 @app.route("/v1/responses", methods=["POST"])
@@ -1067,6 +1113,9 @@ def handle():
     for k in ("temperature", "top_p", "max_tokens", "max_completion_tokens"):
         if k in body:
             cc[k] = body[k]
+    reasoning = body.get("reasoning")
+    if isinstance(reasoning, dict) and reasoning.get("effort"):
+        cc["reasoning_effort"] = reasoning["effort"]
 
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
 

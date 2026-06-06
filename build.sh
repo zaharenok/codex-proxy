@@ -15,7 +15,7 @@ cp CodexProxyApp/Info.plist build/CodexProxy.app/Contents/
 
 # Compile Swift app
 echo "Compiling Swift..."
-swiftc -o build/CodexProxy.app/Contents/MacOS/CodexProxy     CodexProxyApp/CodexProxyMenuBar.swift     -framework Cocoa
+swiftc -parse-as-library -o build/CodexProxy.app/Contents/MacOS/CodexProxy     CodexProxyApp/CodexProxyMenuBar.swift     -framework Cocoa
 
 # Copy Python files
 echo "Copying Python files..."

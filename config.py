@@ -86,8 +86,34 @@ def _find_section_lines(lines: list[str], section_header: str) -> tuple[int, int
     return -1, -1
 
 
+def _remove_proxy_sections(lines: list[str]) -> list[str]:
+    """Remove proxy-related sections and their header comments from config lines."""
+    new_lines = []
+    skip_until_next = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith(f"[model_providers.{PROXY_PROVIDER_ID}]") and stripped.endswith("]"):
+            skip_until_next = True
+            continue
+        if stripped.startswith(f"[profiles.{PROXY_PROFILE_ID}]") and stripped.endswith("]"):
+            skip_until_next = True
+            continue
+        if stripped.startswith("# --- CODEX PROXY"):
+            continue
+        if skip_until_next:
+            if stripped.startswith("[") and not stripped.startswith("[["):
+                skip_until_next = False
+                new_lines.append(line)
+            continue
+        new_lines.append(line)
+    while new_lines and new_lines[-1].strip() == "":
+        new_lines.pop()
+    return new_lines
+
+
 def install_codex_config(port: int = 9090, api_key: str = "") -> bool:
     """MERGE proxy provider into existing ~/.codex/config.toml. Never overwrite."""
+    save_original_config()
     codex_dir = CODEX_CONFIG.parent
     codex_dir.mkdir(parents=True, exist_ok=True)
 
@@ -102,26 +128,7 @@ def install_codex_config(port: int = 9090, api_key: str = "") -> bool:
     lines = existing.split("\n") if existing else []
 
     # Remove old proxy sections if present
-    new_lines = []
-    skip_until_next = False
-    for line in lines:
-        stripped = line.strip()
-        if stripped == f"[model_providers.{PROXY_PROVIDER_ID}]":
-            skip_until_next = True
-            continue
-        if stripped == f"[profiles.{PROXY_PROFILE_ID}]":
-            skip_until_next = True
-            continue
-        if skip_until_next:
-            if stripped.startswith("[") and not stripped.startswith("[["):
-                skip_until_next = False
-                new_lines.append(line)
-            continue
-        new_lines.append(line)
-
-    # Remove trailing empty lines
-    while new_lines and new_lines[-1].strip() == "":
-        new_lines.pop()
+    new_lines = _remove_proxy_sections(lines)
 
     # Add our proxy section
     key_line = f'experimental_bearer_token = "{api_key}"' if api_key else 'experimental_bearer_token = "PLACEHOLDER"'
@@ -171,17 +178,63 @@ def update_api_key_in_config(api_key: str) -> bool:
 
 
 def restore_config() -> str:
-    """Restore the oldest backup (original config). Returns message."""
+    """Restore backup (prefer clean ones without proxy content). Returns message."""
     import glob
     backup_dir = str(CODEX_CONFIG.parent)
     backups = sorted(glob.glob(os.path.join(backup_dir, "config.toml.bak-*")))
     if not backups:
         return "No backup found"
 
-    # Find the biggest backup (most complete config)
-    biggest = max(backups, key=lambda f: os.path.getsize(f))
-    shutil.copy2(biggest, CODEX_CONFIG)
-    return f"Restored from {os.path.basename(biggest)}"
+    # Prefer clean backups (no proxy content), fallback to biggest
+    clean = [f for f in backups if PROXY_PROVIDER_ID not in Path(f).read_text(encoding="utf-8", errors="ignore")]
+    target = max(clean, key=os.path.getsize) if clean else max(backups, key=os.path.getsize)
+
+    shutil.copy2(target, CODEX_CONFIG)
+    return f"Restored from {os.path.basename(target)}"
+
+
+ORIGINAL_CONFIG = CONFIG_DIR / "config.toml.original"
+
+
+def _is_contaminated(path: Path) -> bool:
+    return PROXY_PROVIDER_ID in path.read_text(encoding="utf-8", errors="ignore")
+
+def _find_clean_backup() -> str | None:
+    import glob
+    backup_dir = str(CODEX_CONFIG.parent)
+    backups = sorted(glob.glob(os.path.join(backup_dir, "config.toml.bak-*")))
+    clean = [f for f in backups if not _is_contaminated(Path(f))]
+    return str(clean[-1]) if clean else None
+
+
+def save_original_config() -> str:
+    """Save a pristine copy of Codex config before any proxy modifications."""
+    if ORIGINAL_CONFIG.exists() and not _is_contaminated(ORIGINAL_CONFIG):
+        return "Original already saved"
+    if not CODEX_CONFIG.exists():
+        return "No Codex config found"
+
+    if _is_contaminated(CODEX_CONFIG):
+        src = _find_clean_backup()
+        if src is None:
+            return "No clean original config found"
+    else:
+        src = str(CODEX_CONFIG)
+
+    shutil.copy2(src, ORIGINAL_CONFIG)
+    return f"Saved original config from {src}"
+
+
+def restore_original_config() -> str:
+    """Remove proxy sections from current config preserving all other content."""
+    if not CODEX_CONFIG.exists():
+        return "No Codex config found"
+    lines = CODEX_CONFIG.read_text(encoding="utf-8").split("\n")
+    new_lines = _remove_proxy_sections(lines)
+    if len(new_lines) == len(lines):
+        return "No proxy sections found to remove"
+    CODEX_CONFIG.write_text("\n".join(new_lines), encoding="utf-8")
+    return "Proxy sections removed, original content preserved"
 
 
 def get_codex_config_path() -> str:

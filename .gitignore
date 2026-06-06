@@ -9,3 +9,4 @@ last_request.json
 dist/
 build/
 *.bak-*
+.DS_Store
