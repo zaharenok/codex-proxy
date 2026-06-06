@@ -1088,8 +1088,8 @@ def handle():
 @app.route("/v1/models", methods=["GET"])
 @app.route("/models", methods=["GET"])
 def models():
-    data = [{"id": m, "object": "model", "owned_by": "codex-proxy"} for m in set(model_map.values())]
-    return jsonify({"object": "list", "data": data})
+    model_list = [{"id": m, "object": "model", "owned_by": "codex-proxy", "slug": m} for m in set(model_map.values())]
+    return jsonify({"object": "list", "data": model_list})
 
 
 @app.route("/health", methods=["GET"])

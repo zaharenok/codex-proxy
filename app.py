@@ -84,6 +84,20 @@ class Api:
         subprocess.run(["open", os.path.expanduser("~/.codexproxy")])
         return {"ok": True}
 
+    def launch_codex(self):
+        """Launch Codex CLI with proxy profile, bypassing GUI subscription check."""
+        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "launch-codex.sh")
+        key = load_api_key()
+        env = os.environ.copy()
+        env["CODEX_PROXY_API_KEY"] = key
+        subprocess.Popen(
+            ["open", "-a", "Terminal", script],
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return {"ok": True}
+
     def restore_config(self):
         from config import restore_config as do_restore
         msg = do_restore()
@@ -104,7 +118,7 @@ def main():
     )
 
     api = Api(window)
-    window.expose(api.load_settings, api.start_proxy, api.stop_proxy, api.install_config, api.restore_config, api.open_config)
+    window.expose(api.load_settings, api.start_proxy, api.stop_proxy, api.install_config, api.restore_config, api.open_config, api.launch_codex)
 
     webview.start(debug=False)
 
