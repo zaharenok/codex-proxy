@@ -23,10 +23,22 @@ Codex Desktop → localhost:9090/v1/responses → Codex Proxy → /chat/completi
 
 ```bash
 pip install -r requirements.txt
-python proxy.py --preset "DeepSeek V4 Pro" --api-key sk-xxx
 ```
 
-## Usage
+### Desktop GUI
+
+```bash
+# pywebview (HTML/CSS UI via macOS WebKit) — requires pywebview
+pip install pywebview
+python app.py
+
+# Tkinter (native macOS widgets) — no extra deps
+python app_tkinter.py
+```
+
+Both GUIs let you pick a provider, enter an API key, and start/stop the proxy from a desktop window.
+
+### Command Line
 
 ```bash
 # Using a preset
