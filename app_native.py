@@ -126,6 +126,14 @@ def cmd_start():
 
     ensure_config_dir()
 
+    # Make API key available as env var for Codex Desktop App
+    proxy_env = os.environ.copy()
+    proxy_env["CODEX_PROXY_API_KEY"] = api_key
+    try:
+        subprocess.run(["launchctl", "setenv", "CODEX_PROXY_API_KEY", api_key], capture_output=True, timeout=5)
+    except Exception:
+        pass
+
     # Launch proxy as detached subprocess
     log_file = open(str(PROXY_LOG), "a")
     proc = subprocess.Popen(
@@ -134,6 +142,7 @@ def cmd_start():
         stderr=log_file,
         stdin=subprocess.DEVNULL,
         start_new_session=True,
+        env=proxy_env,
     )
 
     # Save PID
@@ -166,6 +175,11 @@ def cmd_stop():
     try:
         PID_FILE.unlink()
     except FileNotFoundError:
+        pass
+
+    try:
+        subprocess.run(["launchctl", "unsetenv", "CODEX_PROXY_API_KEY"], capture_output=True, timeout=5)
+    except Exception:
         pass
 
     save_state({"proxy_running": False})

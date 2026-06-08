@@ -87,7 +87,7 @@ def _find_section_lines(lines: list[str], section_header: str) -> tuple[int, int
 
 
 def _remove_proxy_sections(lines: list[str]) -> list[str]:
-    """Remove proxy-related sections and their header comments from config lines."""
+    """Remove proxy-related sections, top-level model_provider, and header comments."""
     new_lines = []
     skip_until_next = False
     for line in lines:
@@ -99,6 +99,8 @@ def _remove_proxy_sections(lines: list[str]) -> list[str]:
             skip_until_next = True
             continue
         if stripped.startswith("# --- CODEX PROXY"):
+            continue
+        if stripped.startswith(f'model_provider = "{PROXY_PROVIDER_ID}"'):
             continue
         if skip_until_next:
             if stripped.startswith("[") and not stripped.startswith("[["):
@@ -130,14 +132,28 @@ def install_codex_config(port: int = 9090, api_key: str = "") -> bool:
     # Remove old proxy sections if present
     new_lines = _remove_proxy_sections(lines)
 
+    # Set model_provider at top level so Desktop App routes through proxy
+    mp_set = False
+    for i, line in enumerate(new_lines):
+        if line.strip().startswith("model_provider ="):
+            new_lines[i] = f'model_provider = "{PROXY_PROVIDER_ID}"'
+            mp_set = True
+            break
+    if not mp_set:
+        for i, line in enumerate(new_lines):
+            if line.strip().startswith("model ="):
+                new_lines.insert(i + 1, f'model_provider = "{PROXY_PROVIDER_ID}"')
+                break
+
     # Add our proxy section
-    key_line = f'experimental_bearer_token = "{api_key}"' if api_key else 'experimental_bearer_token = "PLACEHOLDER"'
+    key_line = f'env_key = "CODEX_PROXY_API_KEY"'
     proxy_section = f"""
 # --- CODEX PROXY (auto-added, merge-safe) ---
 [model_providers.{PROXY_PROVIDER_ID}]
 name = "Codex Proxy"
 base_url = "http://localhost:{port}/v1"
 wire_api = "responses"
+requires_openai_auth = true
 {key_line}
 
 [profiles.{PROXY_PROFILE_ID}]
@@ -167,8 +183,8 @@ def update_api_key_in_config(api_key: str) -> bool:
         if in_proxy_section and stripped.startswith("[") and not stripped.startswith("[["):
             in_proxy_section = False
             continue
-        if in_proxy_section and stripped.startswith("experimental_bearer_token"):
-            lines[i] = f'experimental_bearer_token = "{api_key}"'
+        if in_proxy_section and ("env_key" in stripped or "experimental_bearer_token" in stripped):
+            lines[i] = 'env_key = "CODEX_PROXY_API_KEY"'
             updated = True
             break
 

@@ -138,6 +138,20 @@
     }
     .field-input-wrap .toggle-vis:hover { color: var(--accent); }
 
+    .field-hint {
+      font-size: 10px;
+      color: var(--muted);
+      line-height: 1.4;
+      margin: 2px 0 0 0;
+    }
+    .field-hint code {
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      background: var(--border);
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+
     /* ---- Status bar ---- */
     .status-bar {
       display: flex;
@@ -420,6 +434,7 @@
         <button class="btn" id="btn-validate-key" style="padding:7px 10px;font-size:10px;height:100%;">Validate Key</button>
       </div>
     </div>
+    <div class="field-hint">Key stored locally in <code>~/.codexproxy/.api_key</code>. Only sent to the provider you choose.</div>
 
     <!-- Model select (shown after validation) -->
     <div id="model-section" style="display:none;">

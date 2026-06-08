@@ -141,11 +141,23 @@ class Api:
         if not update_api_key_in_config(api_key):
             install_codex_config(port, api_key)
 
+        # Make API key available as env var for Codex Desktop App
+        os.environ["CODEX_PROXY_API_KEY"] = api_key
+        try:
+            subprocess.run(["launchctl", "setenv", "CODEX_PROXY_API_KEY", api_key], capture_output=True, timeout=5)
+        except Exception:
+            pass
+
         return {"ok": True, "upstream": upstream}
 
     def stop_proxy(self):
         stop_server()
         restore_original_config()
+        os.environ.pop("CODEX_PROXY_API_KEY", None)
+        try:
+            subprocess.run(["launchctl", "unsetenv", "CODEX_PROXY_API_KEY"], capture_output=True, timeout=5)
+        except Exception:
+            pass
         return {"ok": True}
 
     def install_config(self, port):
