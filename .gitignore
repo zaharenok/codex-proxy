@@ -1,0 +1,30 @@
+__pycache__/
+*.pyc
+.env
+.playwright-mcp/
+*.log
+reasoning_store.json
+last_request.json
+*.egg-info/
+dist/
+build/
+*.bak-*
+.DS_Store
+
+# Playwright snapshots / page dumps
+codex_proxy_snapshot.md
+gpt41_*.txt
+
+# Internal agent instructions (not for release)
+AGENTS.md
+
+# Key cache
+*.pkl
+.key_cache
+
+# Resources (icons, etc)
+Resources/
+
+# Compiled native app
+CodexProxy.app/
+*.app/

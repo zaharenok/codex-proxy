@@ -1,0 +1,12 @@
+# Codex config.toml — copy to ~/.codex/config.toml
+# Or use: python app.py → Install Codex Config
+
+model = "gpt-5.4"
+model_provider = "codex-proxy"
+sandbox_mode = "danger-full-access"
+
+[model_providers.codex-proxy]
+name = "Codex Proxy"
+base_url = "http://localhost:9090/v1"
+env_key = "CODEX_PROXY_API_KEY"
+wire_api = "responses"
