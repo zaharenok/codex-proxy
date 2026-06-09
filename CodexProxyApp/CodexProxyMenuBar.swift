@@ -26,6 +26,28 @@ struct T {
     static let bw: CGFloat = 2
 }
 
+// MARK: - Layout helpers
+
+extension NSView {
+    func themedBg(_ c: NSColor) {
+        wantsLayer = true
+        layer?.backgroundColor = c.cgColor
+    }
+    func bordered(_ c: NSColor = T.border, _ w: CGFloat = T.bw) {
+        wantsLayer = true
+        layer?.borderColor = c.cgColor
+        layer?.borderWidth = w
+    }
+}
+
+func makeLabel(_ text: String, font: NSFont, color: NSColor) -> NSTextField {
+    let l = NSTextField(labelWithString: text)
+    l.font = font
+    l.textColor = color
+    l.translatesAutoresizingMaskIntoConstraints = false
+    return l
+}
+
 // MARK: - Settings Window
 
 class SettingsWindowController: NSObject, NSWindowDelegate {
@@ -52,22 +74,25 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
     var currentApiKey = ""
     var availableModels: [String] = []
 
-    let W: CGFloat = 480
-    let H: CGFloat = 700
-    let pad: CGFloat = 20
     let fieldH: CGFloat = 30
-    let mono: NSFont = NSFont(name: "Menlo", size: 12) ?? NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-    let mono10: NSFont = NSFont(name: "Menlo", size: 10) ?? NSFont.monospacedSystemFont(ofSize: 10, weight: .regular)
-    let mono10b: NSFont = NSFont(name: "Menlo", size: 10) ?? NSFont.monospacedSystemFont(ofSize: 10, weight: .bold)
-    let mono12b: NSFont = NSFont(name: "Menlo", size: 12) ?? NSFont.monospacedSystemFont(ofSize: 12, weight: .bold)
-    let mono13b: NSFont = NSFont(name: "Menlo", size: 13) ?? NSFont.monospacedSystemFont(ofSize: 13, weight: .bold)
+    let pad: CGFloat = 20
+    let mono = NSFont(name: "Menlo", size: 12) ?? NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+    let mono10 = NSFont(name: "Menlo", size: 10) ?? NSFont.monospacedSystemFont(ofSize: 10, weight: .regular)
+    let mono10b = NSFont(name: "Menlo", size: 10) ?? NSFont.monospacedSystemFont(ofSize: 10, weight: .bold)
+    let mono12b = NSFont(name: "Menlo", size: 12) ?? NSFont.monospacedSystemFont(ofSize: 12, weight: .bold)
+    let mono13b = NSFont(name: "Menlo", size: 13) ?? NSFont.monospacedSystemFont(ofSize: 13, weight: .bold)
 
     override init() {
         super.init()
         build()
     }
 
+    // MARK: - Build UI (Auto Layout / NSStackView)
+
     func build() {
+        let W: CGFloat = 480
+        let H: CGFloat = 700
+
         window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: W, height: H),
             styleMask: [.titled, .closable],
@@ -79,175 +104,355 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
         window.center()
         window.delegate = self
         window.isReleasedWhenClosed = false
+        window.minSize = NSSize(width: 420, height: 600)
         window.backgroundColor = T.bg
 
-        let v = NSView(frame: NSRect(x: 0, y: 0, width: W, height: H))
-        v.wantsLayer = true
-        v.layer?.backgroundColor = T.bg.cgColor
-        window.contentView = v
+        let root = NSView()
+        root.wantsLayer = true
+        root.layer?.backgroundColor = T.bg.cgColor
+        root.translatesAutoresizingMaskIntoConstraints = false
+        window.contentView = root
 
-        let cw = W - pad * 2
-        var y = H
+        // Main vertical stack fills root
+        let mainStack = NSStackView()
+        mainStack.orientation = .vertical
+        mainStack.spacing = 0
+        mainStack.alignment = .fill
+        mainStack.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(mainStack)
+        NSLayoutConstraint.activate([
+            mainStack.topAnchor.constraint(equalTo: root.topAnchor),
+            mainStack.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            mainStack.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            mainStack.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+        ])
 
         // ═══ HEADER ═══
-        let hdrH: CGFloat = 48
-        y -= hdrH
-        let hdr = boxed(NSRect(x: 0, y: y, width: W, height: hdrH), bg: T.surface)
-        hdr.layer?.borderWidth = 0
-        addBottomBorder(hdr, T.border)
+        let header = NSView()
+        header.translatesAutoresizingMaskIntoConstraints = false
+        header.themedBg(T.surface)
 
-        // Icon with shadow box
-        let iconBox = NSView(frame: NSRect(x: pad, y: 6, width: 36, height: 36))
-        iconBox.wantsLayer = true
-        iconBox.layer?.backgroundColor = T.accent.cgColor
-        iconBox.layer?.borderColor = T.fg.cgColor
-        iconBox.layer?.borderWidth = T.bw
-        // Shadow offset
-        let shadowBox = NSView(frame: NSRect(x: pad + 4, y: 2, width: 36, height: 36))
-        shadowBox.wantsLayer = true
-        shadowBox.layer?.backgroundColor = T.fg.cgColor
-        hdr.addSubview(shadowBox)
-        hdr.addSubview(iconBox)
+        let hdrBorder = NSView()
+        hdrBorder.translatesAutoresizingMaskIntoConstraints = false
+        hdrBorder.themedBg(T.border)
+        header.addSubview(hdrBorder)
+        NSLayoutConstraint.activate([
+            hdrBorder.leadingAnchor.constraint(equalTo: header.leadingAnchor),
+            hdrBorder.trailingAnchor.constraint(equalTo: header.trailingAnchor),
+            hdrBorder.bottomAnchor.constraint(equalTo: header.bottomAnchor),
+            hdrBorder.heightAnchor.constraint(equalToConstant: T.bw),
+        ])
 
-        let bolt = NSTextField(labelWithString: "⚡")
+        let iconShadow = NSView()
+        iconShadow.translatesAutoresizingMaskIntoConstraints = false
+        iconShadow.themedBg(T.fg)
+        header.addSubview(iconShadow)
+        NSLayoutConstraint.activate([
+            iconShadow.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: pad + 4),
+            iconShadow.topAnchor.constraint(equalTo: header.topAnchor, constant: 10),
+            iconShadow.widthAnchor.constraint(equalToConstant: 36),
+            iconShadow.heightAnchor.constraint(equalToConstant: 36),
+        ])
+
+        let iconBox = NSView()
+        iconBox.translatesAutoresizingMaskIntoConstraints = false
+        iconBox.themedBg(T.accent)
+        iconBox.bordered(T.fg)
+        header.addSubview(iconBox)
+        NSLayoutConstraint.activate([
+            iconBox.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: pad),
+            iconBox.topAnchor.constraint(equalTo: header.topAnchor, constant: 6),
+            iconBox.widthAnchor.constraint(equalToConstant: 36),
+            iconBox.heightAnchor.constraint(equalToConstant: 36),
+        ])
+
+        let bolt = NSTextField(labelWithString: "\u{26A1}")
         bolt.font = NSFont.systemFont(ofSize: 16)
         bolt.textColor = NSColor(red: 0.04, green: 0.04, blue: 0.04, alpha: 1)
         bolt.alignment = .center
-        bolt.frame = NSRect(x: 0, y: 4, width: 36, height: 28)
+        bolt.translatesAutoresizingMaskIntoConstraints = false
         iconBox.addSubview(bolt)
+        NSLayoutConstraint.activate([
+            bolt.centerXAnchor.constraint(equalTo: iconBox.centerXAnchor),
+            bolt.centerYAnchor.constraint(equalTo: iconBox.centerYAnchor),
+        ])
 
-        let hTitle = label("CODEX PROXY", font: NSFont(name: "Menlo", size: 16) ?? mono13b, color: T.fg)
-        hTitle.frame = NSRect(x: pad + 50, y: 22, width: 300, height: 20)
-        hdr.addSubview(hTitle)
+        let hTitle = makeLabel("CODEX PROXY", font: NSFont(name: "Menlo", size: 16) ?? mono13b, color: T.fg)
+        let hSub = makeLabel("RESPONSES API \u{2194} CHAT COMPLETIONS / ANTHROPIC", font: mono10, color: T.muted)
+        let headerText = NSStackView(views: [hTitle, hSub])
+        headerText.orientation = .vertical
+        headerText.spacing = 1
+        headerText.translatesAutoresizingMaskIntoConstraints = false
+        header.addSubview(headerText)
+        NSLayoutConstraint.activate([
+            headerText.leadingAnchor.constraint(equalTo: iconBox.trailingAnchor, constant: 14),
+            headerText.centerYAnchor.constraint(equalTo: iconBox.centerYAnchor),
+        ])
 
-        let hSub = label("RESPONSES API ↔ CHAT COMPLETIONS / ANTHROPIC", font: mono10, color: T.muted)
-        hSub.frame = NSRect(x: pad + 50, y: 8, width: 400, height: 14)
-        hdr.addSubview(hSub)
-        v.addSubview(hdr)
+        header.translatesAutoresizingMaskIntoConstraints = false
+        let headerH: CGFloat = 56
+        header.heightAnchor.constraint(equalToConstant: headerH).isActive = true
+        mainStack.addArrangedSubview(header)
 
         // ═══ MAIN FORM ═══
-        var fy = y - 16 // form start
+        let formStack = NSStackView()
+        formStack.orientation = .vertical
+        formStack.spacing = 12
+        formStack.alignment = .fill
+        formStack.translatesAutoresizingMaskIntoConstraints = false
 
-        // ── Provider + Port row ──
-        let row1W = cw - 110
-        addFieldLabel(v, y: &fy, text: "PROVIDER", x: pad)
-        presetPopup = makeCombo(NSRect(x: pad, y: fy - fieldH, width: row1W, height: fieldH))
-        presetPopup.target = self
-        presetPopup.action = #selector(onPresetChange)
-        v.addSubview(presetPopup)
+        let formWrap = NSView()
+        formWrap.translatesAutoresizingMaskIntoConstraints = false
+        formWrap.addSubview(formStack)
+        NSLayoutConstraint.activate([
+            formStack.topAnchor.constraint(equalTo: formWrap.topAnchor, constant: 16),
+            formStack.bottomAnchor.constraint(equalTo: formWrap.bottomAnchor, constant: -16),
+            formStack.leadingAnchor.constraint(equalTo: formWrap.leadingAnchor, constant: pad),
+            formStack.trailingAnchor.constraint(equalTo: formWrap.trailingAnchor, constant: -pad),
+        ])
+        mainStack.addArrangedSubview(formWrap)
 
-        addFieldLabel(v, y: &fy, text: "PORT", x: pad + row1W + 10)
-        portField = makeInput(NSRect(x: pad + row1W + 10, y: fy - fieldH, width: 100, height: fieldH))
+        // -- Provider + Port row --
+        presetPopup = makeCombo()
+        let providerCol = fieldColumn("PROVIDER", view: presetPopup)
+
+        portField = makeInput()
         portField.stringValue = "9090"
-        v.addSubview(portField)
-        fy -= fieldH + 12
+        let portCol = fieldColumn("PORT", view: portField)
+        portField.widthAnchor.constraint(equalToConstant: 100).isActive = true
 
-        // ── Upstream ──
-        addFieldLabel(v, y: &fy, text: "UPSTREAM URL", x: pad)
-        upstreamField = makeInput(NSRect(x: pad, y: fy - fieldH, width: cw, height: fieldH))
+        let providerRow = NSStackView(views: [providerCol, portCol])
+        providerRow.orientation = .horizontal
+        providerRow.spacing = 10
+        providerRow.alignment = .top
+        providerRow.translatesAutoresizingMaskIntoConstraints = false
+        providerCol.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        portCol.setContentHuggingPriority(.required, for: .horizontal)
+        formStack.addArrangedSubview(providerRow)
+
+        // -- Upstream --
+        upstreamField = makeInput()
         upstreamField.isEditable = false
-        v.addSubview(upstreamField)
-        fy -= fieldH + 12
+        formStack.addArrangedSubview(fieldColumn("UPSTREAM URL", view: upstreamField))
 
-        // ── API Key + Validate row ──
-        addFieldLabel(v, y: &fy, text: "API KEY", x: pad)
-        let keyW = cw - 120
-        let keyWrap = boxed(NSRect(x: pad, y: fy - fieldH, width: keyW, height: fieldH), bg: T.bg)
-        borderIt(keyWrap, T.border)
+        // -- API Key + Validate row --
+        let keyWrap = NSView()
+        keyWrap.translatesAutoresizingMaskIntoConstraints = false
+        keyWrap.themedBg(T.bg)
+        keyWrap.bordered()
 
-        apiKeyField = NSSecureTextField(frame: NSRect(x: 8, y: 0, width: keyW - 48, height: fieldH))
-        styleIn(apiKeyField); apiKeyField.drawsBackground = false; apiKeyField.placeholderString = "sk-..."
+        apiKeyField = NSSecureTextField()
+        styleInput(apiKeyField)
+        apiKeyField.placeholderString = "sk-..."
+        apiKeyField.translatesAutoresizingMaskIntoConstraints = false
         keyWrap.addSubview(apiKeyField)
 
-        apiKeyVisibleField = NSTextField(frame: NSRect(x: 8, y: 0, width: keyW - 48, height: fieldH))
-        styleIn(apiKeyVisibleField); apiKeyVisibleField.drawsBackground = false; apiKeyVisibleField.placeholderString = "sk-..."
+        apiKeyVisibleField = NSTextField()
+        styleInput(apiKeyVisibleField)
+        apiKeyVisibleField.drawsBackground = false
+        apiKeyVisibleField.placeholderString = "sk-..."
         apiKeyVisibleField.isHidden = true
+        apiKeyVisibleField.translatesAutoresizingMaskIntoConstraints = false
         keyWrap.addSubview(apiKeyVisibleField)
 
-        showKeyBtn = NSButton(frame: NSRect(x: keyW - 36, y: 2, width: 30, height: fieldH - 4))
-        showKeyBtn.title = "👁"; showKeyBtn.font = NSFont(name: "Apple Color Emoji", size: 12)
-        showKeyBtn.bezelStyle = .inline; showKeyBtn.isBordered = false
-        showKeyBtn.target = self; showKeyBtn.action = #selector(toggleKeyVis)
+        showKeyBtn = NSButton(title: "\u{1F441}", target: self, action: #selector(toggleKeyVis))
+        showKeyBtn.font = NSFont(name: "Apple Color Emoji", size: 12)
+        showKeyBtn.bezelStyle = .inline
+        showKeyBtn.isBordered = false
+        showKeyBtn.translatesAutoresizingMaskIntoConstraints = false
         keyWrap.addSubview(showKeyBtn)
-        v.addSubview(keyWrap)
 
-        // Validate button inline
-        validateBtn = makeBtn(NSRect(x: pad + keyW + 10, y: fy - fieldH, width: 110, height: fieldH), title: "VALIDATE", bg: T.surface, fg: T.fg, border: T.border)
+        NSLayoutConstraint.activate([
+            apiKeyField.leadingAnchor.constraint(equalTo: keyWrap.leadingAnchor, constant: 8),
+            apiKeyField.trailingAnchor.constraint(equalTo: showKeyBtn.leadingAnchor, constant: -4),
+            apiKeyField.topAnchor.constraint(equalTo: keyWrap.topAnchor),
+            apiKeyField.bottomAnchor.constraint(equalTo: keyWrap.bottomAnchor),
+            apiKeyVisibleField.leadingAnchor.constraint(equalTo: apiKeyField.leadingAnchor),
+            apiKeyVisibleField.trailingAnchor.constraint(equalTo: apiKeyField.trailingAnchor),
+            apiKeyVisibleField.topAnchor.constraint(equalTo: apiKeyField.topAnchor),
+            apiKeyVisibleField.bottomAnchor.constraint(equalTo: apiKeyField.bottomAnchor),
+            showKeyBtn.trailingAnchor.constraint(equalTo: keyWrap.trailingAnchor, constant: -4),
+            showKeyBtn.centerYAnchor.constraint(equalTo: keyWrap.centerYAnchor),
+            showKeyBtn.widthAnchor.constraint(equalToConstant: 30),
+            keyWrap.heightAnchor.constraint(equalToConstant: fieldH),
+        ])
+
+        validateBtn = makeBtn(title: "VALIDATE", bg: T.surface, fg: T.fg, border: T.border)
         validateBtn.font = mono10b
-        validateBtn.target = self; validateBtn.action = #selector(onValidateKey)
-        v.addSubview(validateBtn)
-        fy -= fieldH + 4
+        validateBtn.target = self
+        validateBtn.action = #selector(onValidateKey)
+        validateBtn.widthAnchor.constraint(equalToConstant: 110).isActive = true
 
-        validateLabel = label("", font: mono10, color: T.muted)
-        validateLabel.frame = NSRect(x: pad, y: fy - 14, width: cw, height: 14)
-        v.addSubview(validateLabel)
-        fy -= 18
+        let keyRow = NSStackView(views: [keyWrap, validateBtn])
+        keyRow.orientation = .horizontal
+        keyRow.spacing = 10
+        keyRow.alignment = .centerY
+        keyRow.translatesAutoresizingMaskIntoConstraints = false
+        keyWrap.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        validateBtn.setContentHuggingPriority(.required, for: .horizontal)
+        formStack.addArrangedSubview(fieldColumn("API KEY", view: keyRow))
 
-        // ── Model ──
-        addFieldLabel(v, y: &fy, text: "MODEL", x: pad)
-        modelPopup = makeCombo(NSRect(x: pad, y: fy - fieldH, width: cw, height: fieldH))
-        modelPopup.addItem(withTitle: "— validate key to load —")
-        v.addSubview(modelPopup)
-        fy -= fieldH + 14
+        validateLabel = makeLabel("", font: mono10, color: T.muted)
+        formStack.addArrangedSubview(validateLabel)
 
-        // ═══ STATUS BAR (with shadow) ═══
-        let stH: CGFloat = 36
-        // Shadow layer
-        let stShadow = NSView(frame: NSRect(x: pad + 5, y: fy - stH - 5, width: cw, height: stH))
-        stShadow.wantsLayer = true; stShadow.layer?.backgroundColor = T.border.cgColor
-        v.addSubview(stShadow)
+        // -- Model --
+        modelPopup = makeCombo()
+        modelPopup.addItem(withTitle: "\u{2014} validate key to load \u{2014}")
+        formStack.addArrangedSubview(fieldColumn("MODEL", view: modelPopup))
 
-        let stWrap = boxed(NSRect(x: pad, y: fy - stH, width: cw, height: stH), bg: T.surface)
-        borderIt(stWrap, T.border)
+        // ═══ STATUS BAR ═══
+        let stWrap = NSView()
+        stWrap.translatesAutoresizingMaskIntoConstraints = false
+        stWrap.themedBg(T.surface)
+        stWrap.bordered()
 
-        statusDot = NSView(frame: NSRect(x: 14, y: 12, width: 12, height: 12))
-        statusDot.wantsLayer = true; statusDot.layer?.backgroundColor = T.muted.cgColor
+        let stShadow = NSView()
+        stShadow.translatesAutoresizingMaskIntoConstraints = false
+        stShadow.themedBg(T.border)
+        let statusOuter = NSView()
+        statusOuter.translatesAutoresizingMaskIntoConstraints = false
+        statusOuter.addSubview(stShadow)
+        statusOuter.addSubview(stWrap)
+        NSLayoutConstraint.activate([
+            stShadow.leadingAnchor.constraint(equalTo: statusOuter.leadingAnchor, constant: 5),
+            stShadow.trailingAnchor.constraint(equalTo: statusOuter.trailingAnchor, constant: -5),
+            stShadow.topAnchor.constraint(equalTo: statusOuter.topAnchor),
+            stShadow.heightAnchor.constraint(equalToConstant: 36),
+            stWrap.leadingAnchor.constraint(equalTo: statusOuter.leadingAnchor),
+            stWrap.trailingAnchor.constraint(equalTo: statusOuter.trailingAnchor),
+            stWrap.topAnchor.constraint(equalTo: statusOuter.topAnchor, constant: 5),
+            stWrap.bottomAnchor.constraint(equalTo: statusOuter.bottomAnchor),
+            statusOuter.heightAnchor.constraint(equalToConstant: 41),
+        ])
+
+        statusDot = NSView()
+        statusDot.translatesAutoresizingMaskIntoConstraints = false
+        statusDot.themedBg(T.muted)
         stWrap.addSubview(statusDot)
+        NSLayoutConstraint.activate([
+            statusDot.leadingAnchor.constraint(equalTo: stWrap.leadingAnchor, constant: 14),
+            statusDot.centerYAnchor.constraint(equalTo: stWrap.centerYAnchor),
+            statusDot.widthAnchor.constraint(equalToConstant: 12),
+            statusDot.heightAnchor.constraint(equalToConstant: 12),
+        ])
 
-        statusLabel = label("STOPPED", font: mono13b, color: T.muted)
-        statusLabel.frame = NSRect(x: 34, y: 9, width: 200, height: 18)
+        statusLabel = makeLabel("STOPPED", font: mono13b, color: T.muted)
         stWrap.addSubview(statusLabel)
+        NSLayoutConstraint.activate([
+            statusLabel.leadingAnchor.constraint(equalTo: statusDot.trailingAnchor, constant: 8),
+            statusLabel.centerYAnchor.constraint(equalTo: stWrap.centerYAnchor),
+        ])
 
-        // Port badge
-        let portBadge = boxed(NSRect(x: cw - 64, y: 8, width: 52, height: 20), bg: T.bg)
-        borderIt(portBadge, T.border)
-        statusPortLabel = label(":9090", font: mono12b, color: T.fg)
-        statusPortLabel.frame = NSRect(x: 0, y: 2, width: 52, height: 16)
+        let portBadge = NSView()
+        portBadge.translatesAutoresizingMaskIntoConstraints = false
+        portBadge.themedBg(T.bg)
+        portBadge.bordered()
+        stWrap.addSubview(portBadge)
+        NSLayoutConstraint.activate([
+            portBadge.trailingAnchor.constraint(equalTo: stWrap.trailingAnchor, constant: -14),
+            portBadge.centerYAnchor.constraint(equalTo: stWrap.centerYAnchor),
+            portBadge.widthAnchor.constraint(equalToConstant: 52),
+            portBadge.heightAnchor.constraint(equalToConstant: 20),
+        ])
+
+        statusPortLabel = makeLabel(":9090", font: mono12b, color: T.fg)
         statusPortLabel.alignment = .center
         portBadge.addSubview(statusPortLabel)
-        stWrap.addSubview(portBadge)
-        v.addSubview(stWrap)
-        fy -= stH + 10
+        NSLayoutConstraint.activate([
+            statusPortLabel.centerXAnchor.constraint(equalTo: portBadge.centerXAnchor),
+            statusPortLabel.centerYAnchor.constraint(equalTo: portBadge.centerYAnchor),
+        ])
 
-        // ═══ CONTROLS (Start / Stop) ═══
-        let btnW = (cw - 10) / 2
+        let statusSection = NSView()
+        statusSection.translatesAutoresizingMaskIntoConstraints = false
+        statusSection.addSubview(statusOuter)
+        NSLayoutConstraint.activate([
+            statusOuter.leadingAnchor.constraint(equalTo: statusSection.leadingAnchor, constant: pad),
+            statusOuter.trailingAnchor.constraint(equalTo: statusSection.trailingAnchor, constant: -pad),
+            statusOuter.topAnchor.constraint(equalTo: statusSection.topAnchor),
+            statusOuter.bottomAnchor.constraint(equalTo: statusSection.bottomAnchor),
+        ])
+        mainStack.addArrangedSubview(statusSection)
 
-        startBtn = makeBtn(NSRect(x: pad, y: fy - 38, width: btnW, height: 38), title: "▶ START", bg: T.accent, fg: NSColor(red: 0.04, green: 0.04, blue: 0.04, alpha: 1), border: T.fg)
+        // spacer
+        let spacer1 = NSView()
+        spacer1.translatesAutoresizingMaskIntoConstraints = false
+        spacer1.heightAnchor.constraint(equalToConstant: 10).isActive = true
+        mainStack.addArrangedSubview(spacer1)
+
+        // ═══ CONTROLS ═══
+        startBtn = makeBtn(title: "\u{25B6} START", bg: T.accent, fg: NSColor(red: 0.04, green: 0.04, blue: 0.04, alpha: 1), border: T.fg)
         startBtn.font = mono12b
-        startBtn.target = self; startBtn.action = #selector(onStart)
-        v.addSubview(startBtn)
+        startBtn.target = self
+        startBtn.action = #selector(onStart)
 
-        stopBtn = makeBtn(NSRect(x: pad + btnW + 10, y: fy - 38, width: btnW, height: 38), title: "⏹ STOP", bg: T.danger.withAlphaComponent(0.18), fg: T.danger, border: T.danger)
+        stopBtn = makeBtn(title: "\u{23F9} STOP", bg: T.danger.withAlphaComponent(0.18), fg: T.danger, border: T.danger)
         stopBtn.font = mono12b
         stopBtn.isEnabled = false
-        stopBtn.target = self; stopBtn.action = #selector(onStop)
-        v.addSubview(stopBtn)
-        fy -= 38 + 10
+        stopBtn.target = self
+        stopBtn.action = #selector(onStop)
+
+        let controlsRow = NSStackView(views: [startBtn, stopBtn])
+        controlsRow.orientation = .horizontal
+        controlsRow.spacing = 10
+        controlsRow.alignment = .fill
+        controlsRow.translatesAutoresizingMaskIntoConstraints = false
+        controlsRow.heightAnchor.constraint(equalToConstant: 38).isActive = true
+        startBtn.widthAnchor.constraint(equalTo: stopBtn.widthAnchor).isActive = true
+
+        let controlsWrap = NSView()
+        controlsWrap.translatesAutoresizingMaskIntoConstraints = false
+        controlsWrap.addSubview(controlsRow)
+        NSLayoutConstraint.activate([
+            controlsRow.topAnchor.constraint(equalTo: controlsWrap.topAnchor),
+            controlsRow.bottomAnchor.constraint(equalTo: controlsWrap.bottomAnchor),
+            controlsRow.leadingAnchor.constraint(equalTo: controlsWrap.leadingAnchor, constant: pad),
+            controlsRow.trailingAnchor.constraint(equalTo: controlsWrap.trailingAnchor, constant: -pad),
+        ])
+        mainStack.addArrangedSubview(controlsWrap)
+
+        // spacer
+        let spacer2 = NSView()
+        spacer2.translatesAutoresizingMaskIntoConstraints = false
+        spacer2.heightAnchor.constraint(equalToConstant: 10).isActive = true
+        mainStack.addArrangedSubview(spacer2)
 
         // ═══ LOG PANEL ═══
-        let logH: CGFloat = 120
-        let logWrap = boxed(NSRect(x: pad, y: fy - logH, width: cw, height: logH), bg: T.bg)
-        borderIt(logWrap, T.border)
+        let logWrap = NSView()
+        logWrap.translatesAutoresizingMaskIntoConstraints = false
+        logWrap.themedBg(T.bg)
+        logWrap.bordered()
 
-        // Log header
-        let logHdr = boxed(NSRect(x: 0, y: logH - 24, width: cw, height: 24), bg: T.surface)
-        addBottomBorder(logHdr, T.border)
-        let logTitle = label("▸ LOGS", font: mono10b, color: T.accent)
-        logTitle.frame = NSRect(x: 10, y: 5, width: 100, height: 14)
-        logHdr.addSubview(logTitle)
+        let logHdr = NSView()
+        logHdr.translatesAutoresizingMaskIntoConstraints = false
+        logHdr.themedBg(T.surface)
         logWrap.addSubview(logHdr)
+        NSLayoutConstraint.activate([
+            logHdr.leadingAnchor.constraint(equalTo: logWrap.leadingAnchor),
+            logHdr.trailingAnchor.constraint(equalTo: logWrap.trailingAnchor),
+            logHdr.topAnchor.constraint(equalTo: logWrap.topAnchor),
+            logHdr.heightAnchor.constraint(equalToConstant: 24),
+        ])
 
-        logView = NSTextView(frame: NSRect(x: 2, y: 2, width: cw - 4, height: logH - 28))
+        let logBorder = NSView()
+        logBorder.translatesAutoresizingMaskIntoConstraints = false
+        logBorder.themedBg(T.border)
+        logWrap.addSubview(logBorder)
+        NSLayoutConstraint.activate([
+            logBorder.leadingAnchor.constraint(equalTo: logWrap.leadingAnchor),
+            logBorder.trailingAnchor.constraint(equalTo: logWrap.trailingAnchor),
+            logBorder.topAnchor.constraint(equalTo: logHdr.bottomAnchor),
+            logBorder.heightAnchor.constraint(equalToConstant: T.bw),
+        ])
+
+        let logTitle = makeLabel("\u{25B8} LOGS", font: mono10b, color: T.accent)
+        logHdr.addSubview(logTitle)
+        NSLayoutConstraint.activate([
+            logTitle.leadingAnchor.constraint(equalTo: logHdr.leadingAnchor, constant: 10),
+            logTitle.centerYAnchor.constraint(equalTo: logHdr.centerYAnchor),
+        ])
+
+        logView = NSTextView()
         logView.font = mono10
         logView.textColor = T.muted
         logView.backgroundColor = T.bg
@@ -255,14 +460,48 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
         logView.isEditable = false
         logView.isSelectable = true
         logView.textContainerInset = NSSize(width: 8, height: 4)
+        logView.translatesAutoresizingMaskIntoConstraints = false
         logWrap.addSubview(logView)
-        v.addSubview(logWrap)
-        fy -= logH + 6
+        NSLayoutConstraint.activate([
+            logView.leadingAnchor.constraint(equalTo: logWrap.leadingAnchor, constant: 2),
+            logView.trailingAnchor.constraint(equalTo: logWrap.trailingAnchor, constant: -2),
+            logView.topAnchor.constraint(equalTo: logBorder.bottomAnchor, constant: 2),
+            logView.bottomAnchor.constraint(equalTo: logWrap.bottomAnchor, constant: -2),
+        ])
+
+        let logSection = NSView()
+        logSection.translatesAutoresizingMaskIntoConstraints = false
+        logSection.addSubview(logWrap)
+        NSLayoutConstraint.activate([
+            logWrap.leadingAnchor.constraint(equalTo: logSection.leadingAnchor, constant: pad),
+            logWrap.trailingAnchor.constraint(equalTo: logSection.trailingAnchor, constant: -pad),
+            logWrap.topAnchor.constraint(equalTo: logSection.topAnchor),
+            logWrap.bottomAnchor.constraint(equalTo: logSection.bottomAnchor),
+            logSection.heightAnchor.constraint(equalToConstant: 120),
+        ])
+        mainStack.addArrangedSubview(logSection)
+
+        // spacer
+        let spacer3 = NSView()
+        spacer3.translatesAutoresizingMaskIntoConstraints = false
+        spacer3.heightAnchor.constraint(equalToConstant: 6).isActive = true
+        mainStack.addArrangedSubview(spacer3)
 
         // ═══ FOOTER ═══
-        let footH: CGFloat = 36
-        let footer = boxed(NSRect(x: 0, y: fy - footH, width: W, height: footH), bg: T.surface)
-        addTopBorder(footer, T.border)
+        let footer = NSView()
+        footer.translatesAutoresizingMaskIntoConstraints = false
+        footer.themedBg(T.surface)
+
+        let footBorder = NSView()
+        footBorder.translatesAutoresizingMaskIntoConstraints = false
+        footBorder.themedBg(T.border)
+        footer.addSubview(footBorder)
+        NSLayoutConstraint.activate([
+            footBorder.leadingAnchor.constraint(equalTo: footer.leadingAnchor),
+            footBorder.trailingAnchor.constraint(equalTo: footer.trailingAnchor),
+            footBorder.topAnchor.constraint(equalTo: footer.topAnchor),
+            footBorder.heightAnchor.constraint(equalToConstant: T.bw),
+        ])
 
         let footActions: [(String, NSColor, NSColor, Selector)] = [
             ("INSTALL",    T.fg,     T.border, #selector(onInstallConfig)),
@@ -272,9 +511,13 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
             ("DESKTOP",    T.accent, T.accent, #selector(onLaunchDesktop)),
             ("CONFIG",     T.fg,     T.border, #selector(onOpenConfig)),
         ]
-        var fx: CGFloat = pad - 4
+        let footerBtns = NSStackView()
+        footerBtns.orientation = .horizontal
+        footerBtns.spacing = 6
+        footerBtns.alignment = .centerY
+        footerBtns.translatesAutoresizingMaskIntoConstraints = false
         for (title, fg, brd, action) in footActions {
-            let btn = NSButton(frame: .zero)
+            let btn = NSButton()
             btn.bezelStyle = .regularSquare
             btn.isBordered = true
             btn.target = self
@@ -284,75 +527,95 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
             btn.layer?.borderWidth = T.bw
             btn.layer?.backgroundColor = T.surface.cgColor
             btn.font = mono10b
-            let a: [NSAttributedString.Key: Any] = [.foregroundColor: fg, .font: mono10b]
-            btn.attributedTitle = NSAttributedString(string: title, attributes: a)
+            let attrs: [NSAttributedString.Key: Any] = [.foregroundColor: fg, .font: mono10b]
+            btn.attributedTitle = NSAttributedString(string: title, attributes: attrs)
             btn.sizeToFit()
+            btn.translatesAutoresizingMaskIntoConstraints = false
             var f = btn.frame
             f.size.width += 10
             f.size.height = 24
-            f.origin = NSPoint(x: fx, y: 6)
-            btn.frame = f
-            footer.addSubview(btn)
-            fx += f.width + 6
+            btn.setFrameSize(f.size)
+            footerBtns.addArrangedSubview(btn)
         }
-        v.addSubview(footer)
+        footer.addSubview(footerBtns)
+        NSLayoutConstraint.activate([
+            footerBtns.leadingAnchor.constraint(equalTo: footer.leadingAnchor, constant: pad - 4),
+            footerBtns.topAnchor.constraint(equalTo: footer.topAnchor, constant: T.bw + 4),
+            footerBtns.heightAnchor.constraint(equalToConstant: 24),
+        ])
+        footer.heightAnchor.constraint(equalToConstant: 36).isActive = true
+        mainStack.addArrangedSubview(footer)
     }
 
     // MARK: - UI helpers
 
-    func boxed(_ r: NSRect, bg: NSColor) -> NSView {
-        let v = NSView(frame: r); v.wantsLayer = true; v.layer?.backgroundColor = bg.cgColor; return v
+    func fieldColumn(_ labelText: String, view: NSView) -> NSStackView {
+        let lbl = makeLabel(labelText, font: mono10b, color: T.accent)
+        view.translatesAutoresizingMaskIntoConstraints = false
+        if let ctrl = view as? NSControl {
+            ctrl.heightAnchor.constraint(equalToConstant: fieldH).isActive = true
+        }
+        let col = NSStackView(views: [lbl, view])
+        col.orientation = .vertical
+        col.spacing = 5
+        col.alignment = .fill
+        col.translatesAutoresizingMaskIntoConstraints = false
+        return col
     }
-    func borderIt(_ v: NSView, _ c: NSColor) {
-        v.wantsLayer = true; v.layer?.borderColor = c.cgColor; v.layer?.borderWidth = T.bw
+
+    func makeInput() -> NSTextField {
+        let f = NSTextField()
+        styleInput(f)
+        return f
     }
-    func addBottomBorder(_ v: NSView, _ c: NSColor) {
-        let b = NSView(frame: NSRect(x: 0, y: 0, width: v.frame.width, height: T.bw))
-        b.wantsLayer = true; b.layer?.backgroundColor = c.cgColor; v.addSubview(b)
-    }
-    func addTopBorder(_ v: NSView, _ c: NSColor) {
-        let b = NSView(frame: NSRect(x: 0, y: v.frame.height - T.bw, width: v.frame.width, height: T.bw))
-        b.wantsLayer = true; b.layer?.backgroundColor = c.cgColor; v.addSubview(b)
-    }
-    func label(_ text: String, font: NSFont, color: NSColor) -> NSTextField {
-        let l = NSTextField(labelWithString: text); l.font = font; l.textColor = color; return l
-    }
-    func addFieldLabel(_ v: NSView, y: inout CGFloat, text: String, x: CGFloat) {
-        let l = label(text, font: mono10b, color: T.accent)
-        l.frame = NSRect(x: x, y: y - 14, width: 300, height: 14)
-        v.addSubview(l)
-        y -= 18
-    }
-    func makeInput(_ r: NSRect) -> NSTextField {
-        let f = NSTextField(frame: r); styleIn(f); return f
-    }
-    func styleIn(_ f: NSTextField) {
-        f.font = mono; f.textColor = T.fg; f.backgroundColor = T.bg
-        f.drawsBackground = true; f.isBezeled = false; f.wantsLayer = true
-        f.layer?.borderColor = T.border.cgColor; f.layer?.borderWidth = T.bw
+
+    func styleInput(_ f: NSTextField) {
+        f.font = mono
+        f.textColor = T.fg
+        f.backgroundColor = T.bg
+        f.drawsBackground = true
+        f.isBezeled = false
+        f.wantsLayer = true
+        f.layer?.borderColor = T.border.cgColor
+        f.layer?.borderWidth = T.bw
         f.cell?.sendsActionOnEndEditing = true
     }
-    func makeCombo(_ r: NSRect) -> NSPopUpButton {
-        let p = NSPopUpButton(frame: r, pullsDown: false)
-        p.font = mono; p.wantsLayer = true
-        p.layer?.borderColor = T.border.cgColor; p.layer?.borderWidth = T.bw
+
+    func makeCombo() -> NSPopUpButton {
+        let p = NSPopUpButton()
+        p.font = mono
+        p.wantsLayer = true
+        p.layer?.borderColor = T.border.cgColor
+        p.layer?.borderWidth = T.bw
         p.layer?.backgroundColor = T.bg.cgColor
+        p.translatesAutoresizingMaskIntoConstraints = false
+        p.heightAnchor.constraint(equalToConstant: fieldH).isActive = true
         if let c = p.cell as? NSPopUpButtonCell {
-            c.bezelStyle = .inline; c.isBordered = false; c.backgroundColor = T.bg; c.arrowPosition = .arrowAtBottom
+            c.bezelStyle = .inline
+            c.isBordered = false
+            c.backgroundColor = T.bg
+            c.arrowPosition = .arrowAtBottom
         }
         return p
     }
-    func makeBtn(_ r: NSRect, title: String, bg: NSColor, fg: NSColor, border: NSColor) -> NSButton {
-        let b = NSButton(frame: r)
-        b.wantsLayer = true; b.layer?.backgroundColor = bg.cgColor
-        b.layer?.borderColor = border.cgColor; b.layer?.borderWidth = T.bw
-        b.bezelStyle = .regularSquare; b.isBordered = false
-        let a: [NSAttributedString.Key: Any] = [.foregroundColor: fg, .font: mono12b]
-        b.attributedTitle = NSAttributedString(string: title, attributes: a)
+
+    func makeBtn(title: String, bg: NSColor, fg: NSColor, border: NSColor) -> NSButton {
+        let b = NSButton()
+        b.wantsLayer = true
+        b.layer?.backgroundColor = bg.cgColor
+        b.layer?.borderColor = border.cgColor
+        b.layer?.borderWidth = T.bw
+        b.bezelStyle = .regularSquare
+        b.isBordered = false
+        b.translatesAutoresizingMaskIntoConstraints = false
+        let attrs: [NSAttributedString.Key: Any] = [.foregroundColor: fg, .font: mono12b]
+        b.attributedTitle = NSAttributedString(string: title, attributes: attrs)
         return b
     }
+
     func log(_ msg: String, ok: Bool = true) {
-        let ts = DateFormatter(); ts.dateFormat = "HH:mm:ss"; ts.string(from: Date())
+        let ts = DateFormatter()
+        ts.dateFormat = "HH:mm:ss"
         let prefix = ts.string(from: Date())
         let color = ok ? T.accent : T.danger
         let full = "[\(prefix)] \(msg)\n"
@@ -367,21 +630,28 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
 
     func setRunning(_ on: Bool, port: Int, name: String) {
         if on {
-            startBtn.isEnabled = false; startBtn.layer?.backgroundColor = T.surface2.cgColor
-            stopBtn.isEnabled = true; stopBtn.layer?.backgroundColor = T.danger.cgColor
-            setBtnTitle(stopBtn, "⏹ STOP", fg: .white)
+            startBtn.isEnabled = false
+            startBtn.layer?.backgroundColor = T.surface2.cgColor
+            stopBtn.isEnabled = true
+            stopBtn.layer?.backgroundColor = T.danger.cgColor
+            setBtnTitle(stopBtn, "\u{23F9} STOP", fg: .white)
             statusDot.layer?.backgroundColor = T.accent.cgColor
-            statusLabel.stringValue = "RUNNING"; statusLabel.textColor = T.accent
+            statusLabel.stringValue = "RUNNING"
+            statusLabel.textColor = T.accent
             statusPortLabel.stringValue = ":\(port)"
         } else {
-            startBtn.isEnabled = true; startBtn.layer?.backgroundColor = T.accent.cgColor
-            setBtnTitle(startBtn, "▶ START", fg: NSColor(red: 0.04, green: 0.04, blue: 0.04, alpha: 1))
-            stopBtn.isEnabled = false; stopBtn.layer?.backgroundColor = T.danger.withAlphaComponent(0.18).cgColor
-            setBtnTitle(stopBtn, "⏹ STOP", fg: T.danger)
+            startBtn.isEnabled = true
+            startBtn.layer?.backgroundColor = T.accent.cgColor
+            setBtnTitle(startBtn, "\u{25B6} START", fg: NSColor(red: 0.04, green: 0.04, blue: 0.04, alpha: 1))
+            stopBtn.isEnabled = false
+            stopBtn.layer?.backgroundColor = T.danger.withAlphaComponent(0.18).cgColor
+            setBtnTitle(stopBtn, "\u{23F9} STOP", fg: T.danger)
             statusDot.layer?.backgroundColor = T.muted.cgColor
-            statusLabel.stringValue = "STOPPED"; statusLabel.textColor = T.muted
+            statusLabel.stringValue = "STOPPED"
+            statusLabel.textColor = T.muted
         }
     }
+
     func setBtnTitle(_ b: NSButton, _ t: String, fg: NSColor) {
         let a: [NSAttributedString.Key: Any] = [.foregroundColor: fg, .font: mono12b]
         b.attributedTitle = NSAttributedString(string: t, attributes: a)
@@ -411,7 +681,7 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
                 modelPopup.removeAllItems(); modelPopup.addItem(withTitle: model); availableModels = [model]
             }
         }
-        log("Ready. Select provider → validate → start", ok: true)
+        log("Ready. Select provider \u{2192} validate \u{2192} start", ok: true)
     }
 
     // MARK: - Actions
@@ -424,7 +694,7 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
                let key = kr["key"] as? String, !key.isEmpty {
                 currentApiKey = key; apiKeyField.stringValue = key; apiKeyVisibleField.stringValue = key
             } else { currentApiKey = ""; apiKeyField.stringValue = ""; apiKeyVisibleField.stringValue = "" }
-            modelPopup.removeAllItems(); modelPopup.addItem(withTitle: "— validate key to load —")
+            modelPopup.removeAllItems(); modelPopup.addItem(withTitle: "\u{2014} validate key to load \u{2014}")
             availableModels = []; validateLabel.stringValue = ""
         }
     }
@@ -443,17 +713,17 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
     @objc func onValidateKey() {
         let preset = presetPopup.titleOfSelectedItem ?? ""
         let key = isKeyVisible ? apiKeyVisibleField.stringValue : apiKeyField.stringValue
-        if key.isEmpty { validateLabel.stringValue = "⚠ ENTER KEY FIRST"; validateLabel.textColor = T.fg; return }
+        if key.isEmpty { validateLabel.stringValue = "\u{26A0} ENTER KEY FIRST"; validateLabel.textColor = T.fg; return }
         validateLabel.stringValue = "VALIDATING..."; validateLabel.textColor = T.muted
         validateBtn.isEnabled = false
 
         runPythonJSONAsync(command: "validate-key", args: ["--preset", preset, "--api-key", key]) { [weak self] result in
             guard let self = self else { return }
             if let r = result, r["valid"] as? Bool == true {
-                self.validateLabel.stringValue = "✓ VALID"; self.validateLabel.textColor = T.accent
+                self.validateLabel.stringValue = "\u{2713} VALID"; self.validateLabel.textColor = T.accent
                 _ = self.runPythonJSON(command: "store-key", args: ["--preset", preset, "--api-key", key])
                 self.currentApiKey = key
-                self.log("✓ Key valid for \(preset)")
+                self.log("\u{2713} Key valid for \(preset)")
 
                 self.validateLabel.stringValue = "LOADING MODELS..."
                 self.runPythonJSONAsync(command: "fetch-models", args: ["--preset", preset, "--api-key", key]) { [weak self] mr in
@@ -462,16 +732,16 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
                     if let models = mr?["models"] as? [String], !models.isEmpty {
                         self.availableModels = models
                         self.modelPopup.removeAllItems(); self.modelPopup.addItems(withTitles: models)
-                        self.validateLabel.stringValue = "✓ \(models.count) MODELS"; self.validateLabel.textColor = T.accent
-                        self.log("✓ \(models.count) models loaded for \(preset)")
+                        self.validateLabel.stringValue = "\u{2713} \(models.count) MODELS"; self.validateLabel.textColor = T.accent
+                        self.log("\u{2713} \(models.count) models loaded for \(preset)")
                     } else {
-                        self.validateLabel.stringValue = "✓ VALID"; self.validateLabel.textColor = T.accent
+                        self.validateLabel.stringValue = "\u{2713} VALID"; self.validateLabel.textColor = T.accent
                     }
                 }
             } else {
                 self.validateBtn.isEnabled = true
-                self.validateLabel.stringValue = "✗ INVALID"; self.validateLabel.textColor = T.danger
-                self.log("✗ Key validation failed", ok: false)
+                self.validateLabel.stringValue = "\u{2717} INVALID"; self.validateLabel.textColor = T.danger
+                self.log("\u{2717} Key validation failed", ok: false)
             }
         }
     }
@@ -493,13 +763,13 @@ class SettingsWindowController: NSObject, NSWindowDelegate {
         }
         _ = runPythonJSON(command: "start")
         setRunning(true, port: port, name: preset)
-        log("Proxy started → \(preset) on :\(port)")
+        log("Proxy started \u{2192} \(preset) on :\(port)")
     }
 
     @objc func onStop() {
         _ = runPythonJSON(command: "stop")
         setRunning(false, port: 0, name: "")
-        log("Proxy stopped — config restored")
+        log("Proxy stopped \u{2014} config restored")
     }
 
     @objc func onInstallConfig() { _ = runPythonJSON(command: "install"); log("Config installed") }
@@ -575,11 +845,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func setupMenu() {
         let m = NSMenu()
-        let smi = NSMenuItem(title: "○ STOPPED", action: nil, keyEquivalent: "")
+        let smi = NSMenuItem(title: "\u{25CB} STOPPED", action: nil, keyEquivalent: "")
         smi.tag = 100; smi.isEnabled = false; m.addItem(smi)
         m.addItem(NSMenuItem.separator())
-        m.addItem(withTitle: "▶ Start", action: #selector(startProxy), keyEquivalent: "s")
-        m.addItem(withTitle: "⏹ Stop", action: #selector(stopProxy), keyEquivalent: "x")
+        m.addItem(withTitle: "\u{25B6} Start", action: #selector(startProxy), keyEquivalent: "s")
+        m.addItem(withTitle: "\u{23F9} Stop", action: #selector(stopProxy), keyEquivalent: "x")
         m.addItem(NSMenuItem.separator())
         m.addItem(withTitle: "Settings...", action: #selector(showSettings), keyEquivalent: ",")
         m.addItem(withTitle: "Install Config", action: #selector(installConfig), keyEquivalent: "i")
@@ -607,10 +877,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
            let on = s["proxy_running"] as? Bool {
             let mi = menu.item(withTag: 100)
             if on {
-                mi?.title = "● RUNNING · localhost:\(s["port"] as? Int ?? 9090)"
+                mi?.title = "\u{25CF} RUNNING \u{00B7} localhost:\(s["port"] as? Int ?? 9090)"
                 statusItem?.button?.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: "Running")
             } else {
-                mi?.title = "○ STOPPED"
+                mi?.title = "\u{25CB} STOPPED"
                 statusItem?.button?.image = NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: "Stopped")
             }
             if let sc = settingsController, sc.window.isVisible {
@@ -643,7 +913,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func showAbout() {
         let a = NSAlert()
         a.messageText = "CODEXPROXY 2.0"
-        a.informativeText = "Responses API → Chat Completions / Anthropic\n\nRoute Codex Desktop through alternative providers."
+        a.informativeText = "Responses API \u{2192} Chat Completions / Anthropic\n\nRoute Codex Desktop through alternative providers."
         a.alertStyle = .informational; a.addButton(withTitle: "OK"); a.runModal()
     }
     @objc func quitApp() { execPy("stop"); NSApplication.shared.terminate(self) }
