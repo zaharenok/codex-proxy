@@ -1,44 +1,61 @@
 # Codex Proxy
 
-> Routes OpenAI Codex (Responses API) through cheaper providers — DeepSeek, OpenRouter, z.ai, MiniMax, or any OpenAI/Anthropic-compatible API.
+Route OpenAI Codex Desktop through cheaper providers. Translates the Responses API to Chat Completions or Anthropic Messages on the fly, so you can use DeepSeek, OpenRouter, z.ai, MiniMax, LM Studio, Ollama — or any compatible API.
 
-Codex Desktop sends requests using the Responses API format, which only OpenAI understands. This proxy translates Responses ↔ Chat Completions (or Anthropic Messages) on the fly, so you can use any model.
+**Saves 30–50× on API costs** compared to OpenAI pricing.
 
 ## How It Works
 
 ```
-Codex Desktop → localhost:9090/v1/responses → Codex Proxy → /chat/completions → Your provider
+Codex Desktop ──▶ localhost:9090/v1/responses ──▶ Codex Proxy ──▶ Your provider
 ```
+
+Codex Desktop only speaks the Responses API format. This proxy translates it transparently — no Codex modifications needed.
 
 ## Features
 
-- **API translation** — Responses API ↔ Chat Completions / Anthropic Messages, both directions
+- **API translation** — Responses API ↔ Chat Completions / Anthropic Messages
 - **Streaming** — real-time SSE event translation
 - **Tool calling** — full `function_call` / `function_call_output` support
-- **Reasoning** — captures DeepSeek `reasoning_content` for multi-turn context
-- **Model mapping** — transparently remaps `gpt-5.4` → your chosen model
-- **Plugin compatible** — Codex Desktop stays in ChatGPT auth mode so marketplace plugins work
+- **Reasoning capture** — stores DeepSeek `reasoning_content` for multi-turn context
+- **Model mapping** — remaps `gpt-5.4` → your chosen model transparently
+- **Plugin compatible** — Codex stays in ChatGPT auth mode so marketplace plugins work
 
-## Quick Start
+## Install
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### Desktop GUI
+Requires Python 3.10+. Only two core deps: `flask` and `requests`.
+
+## Three Ways to Use
+
+### 1. Desktop GUI
+
+Pick a provider, paste your API key, hit Start.
 
 ```bash
-# pywebview (HTML/CSS UI via macOS WebKit) — requires pywebview
+# pywebview — HTML/CSS UI with brutalist design
 pip install pywebview
 python app.py
 
-# Tkinter (native macOS widgets) — no extra deps
+# Tkinter — native macOS widgets, no extra deps
 python app_tkinter.py
 ```
 
-Both GUIs let you pick a provider, enter an API key, and start/stop the proxy from a desktop window.
+### 2. Native macOS App
 
-### Command Line
+Menu bar app with a full Settings window — provider selection, API key validation, model picker, logs. Built with Swift + Python backend.
+
+```bash
+bash build.sh          # build CodexProxy.app
+open build/CodexProxy.app
+```
+
+Requires macOS 12+ and Xcode Command Line Tools (`xcode-select --install`).
+
+### 3. Command Line
 
 ```bash
 # Using a preset
@@ -51,31 +68,21 @@ python proxy.py --upstream https://api.deepseek.com --api-key sk-xxx
 python proxy.py --preset "DeepSeek V4 Pro" --api-key sk-xxx --port 8080
 ```
 
-### CLI Launcher
-
-```bash
-./launch-codex.sh
-```
-
-Reads API key from `~/.codexproxy/.api_key` and launches Codex CLI with `--profile proxy`.
-
 ## Supported Providers
 
-| Provider | Preset | API Type | Upstream |
-|----------|--------|----------|----------|
-| **DeepSeek** | `"DeepSeek V4 Pro"` | OpenAI | `api.deepseek.com` |
-| **OpenRouter** | `"OpenRouter"` | OpenAI | `openrouter.ai/api/v1` |
-| **MiniMax** | `"MiniMax"` | OpenAI | `api.minimax.chat/v1` |
-| **OpenCode** | `"OpenCode"` | OpenAI | `opencode.ai/ru/go` |
-| **z.ai** | `"z.ai"` | Anthropic | `api.z.ai/api/anthropic` |
-| **LM Studio** | `"LM Studio"` | OpenAI | `localhost:1234/v1` |
-| **Ollama** | `"Ollama"` | OpenAI | `localhost:11434/v1` |
+| Provider | Preset | API Type |
+|----------|--------|----------|
+| **DeepSeek** | `"DeepSeek V4 Pro"` | OpenAI |
+| **OpenRouter** | `"OpenRouter"` | OpenAI |
+| **MiniMax** | `"MiniMax"` | OpenAI |
+| **OpenCode** | `"OpenCode"` | OpenAI |
+| **z.ai** | `"z.ai"` | Anthropic |
+| **LM Studio** | `"LM Studio"` | OpenAI (local) |
+| **Ollama** | `"Ollama"` | OpenAI (local) |
 
-For any other OpenAI-compatible endpoint, use `--upstream <url>` without a preset.
+For any other OpenAI-compatible endpoint, use `--upstream <url>`.
 
-## Configuration
-
-### Codex Config
+## Codex Configuration
 
 Copy `config.toml.example` to `~/.codex/config.toml`:
 
@@ -91,18 +98,20 @@ env_key = "CODEX_PROXY_API_KEY"
 wire_api = "responses"
 ```
 
-### API Key
+The GUI and native app install this config automatically via the "Install Config" button.
+
+## API Key
 
 Priority order:
 
 1. `Authorization` header in the request
 2. `--api-key` CLI argument
 3. `CODEX_PROXY_API_KEY` environment variable
-4. Empty (requests pass through without auth)
+4. Empty (no auth)
 
-Settings and API key are stored in `~/.codexproxy/`.
+Settings and API keys are stored in `~/.codexproxy/`.
 
-## Endpoints
+## API Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -110,10 +119,18 @@ Settings and API key are stored in `~/.codexproxy/`.
 | `GET` | `/v1/models` | Available models from current model map |
 | `GET` | `/health` | Health check |
 
-## Requirements
+## Project Structure
 
-- Python 3.10+
-- Flask, Requests
+```
+proxy.py                    # Core proxy server
+config.py                   # Settings & Codex config management
+app.py                      # pywebview GUI
+app_tkinter.py              # Tkinter GUI
+codex-proxy-redesign.html   # HTML UI for pywebview
+app_native.py               # Python backend for Swift app
+CodexProxyApp/              # Swift menu bar app source
+build.sh                    # Build script for macOS app
+```
 
 ## License
 
