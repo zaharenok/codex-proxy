@@ -15,7 +15,11 @@ cp CodexProxyApp/Info.plist build/CodexProxy.app/Contents/
 
 # Compile Swift app
 echo "Compiling Swift..."
-swiftc -parse-as-library -o build/CodexProxy.app/Contents/MacOS/CodexProxy     CodexProxyApp/CodexProxyMenuBar.swift     -framework Cocoa
+swiftc -parse-as-library \
+    -o build/CodexProxy.app/Contents/MacOS/CodexProxy \
+    CodexProxyApp/CodexProxyMenuBar.swift \
+    -framework Cocoa \
+    -framework UserNotifications
 
 # Copy Python files
 echo "Copying Python files..."
@@ -24,6 +28,7 @@ cp proxy.py build/CodexProxy.app/Contents/MacOS/
 cp config.py build/CodexProxy.app/Contents/MacOS/
 
 # Copy scripts
+cp launch-codex.sh build/CodexProxy.app/Contents/MacOS/
 cp Scripts/start_proxy.sh build/CodexProxy.app/Contents/MacOS/
 cp Scripts/stop_proxy.sh build/CodexProxy.app/Contents/MacOS/
 chmod +x build/CodexProxy.app/Contents/MacOS/*.sh
@@ -31,5 +36,7 @@ chmod +x build/CodexProxy.app/Contents/MacOS/*.sh
 # Set permissions
 chmod +x build/CodexProxy.app/Contents/MacOS/CodexProxy
 
-echo "Build complete: build/CodexProxy.app"
-echo "Install: cp -r build/CodexProxy.app /Applications/"
+echo ""
+echo "✓ Build complete: build/CodexProxy.app"
+echo "  Install: cp -r build/CodexProxy.app /Applications/"
+echo "  Run:     open build/CodexProxy.app"
