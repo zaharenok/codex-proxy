@@ -29,11 +29,33 @@ pip install -r requirements.txt
 
 Requires Python 3.10+. Only two core deps: `flask` and `requests`.
 
+## Quick Start
+
+```bash
+pip install pywebview
+python app.py
+```
+
+Pick a provider, paste your API key, hit Start — that's the main way to run it. Other launchers below.
+
 ## Three Ways to Use
 
-### 1. Command Line (recommended)
+### 1. Desktop GUI (recommended)
 
-The fastest path — runs the proxy directly from Python, no GUI.
+Pick a provider, paste your API key, hit Start. This is the main way to run Codex Proxy.
+
+```bash
+pip install pywebview
+python app.py
+```
+
+A brutalist HTML/CSS UI in a macOS WebKit window — provider selector, API key validation, model picker, live logs.
+
+> No extra deps? `python app_tkinter.py` — the same controls with native Tkinter widgets.
+
+### 2. Command Line
+
+For headless use or automation — runs the proxy directly, no GUI.
 
 ```bash
 # Using a preset
@@ -44,19 +66,6 @@ python proxy.py --upstream https://api.deepseek.com --api-key sk-xxx
 
 # Custom port
 python proxy.py --preset "DeepSeek V4 Pro" --api-key sk-xxx --port 8080
-```
-
-### 2. Desktop GUI
-
-For a visual launcher — pick a provider, paste your API key, hit Start. Still pure Python.
-
-```bash
-# pywebview — HTML/CSS UI with brutalist design
-pip install pywebview
-python app.py
-
-# Tkinter — native macOS widgets, no extra deps
-python app_tkinter.py
 ```
 
 ### 3. Native macOS App (optional)
