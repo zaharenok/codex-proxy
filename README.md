@@ -31,31 +31,9 @@ Requires Python 3.10+. Only two core deps: `flask` and `requests`.
 
 ## Three Ways to Use
 
-### 1. Desktop GUI
+### 1. Command Line (recommended)
 
-Pick a provider, paste your API key, hit Start.
-
-```bash
-# pywebview — HTML/CSS UI with brutalist design
-pip install pywebview
-python app.py
-
-# Tkinter — native macOS widgets, no extra deps
-python app_tkinter.py
-```
-
-### 2. Native macOS App
-
-Menu bar app with a full Settings window — provider selection, API key validation, model picker, logs. Built with Swift + Python backend.
-
-```bash
-bash build.sh          # build CodexProxy.app
-open build/CodexProxy.app
-```
-
-Requires macOS 12+ and Xcode Command Line Tools (`xcode-select --install`).
-
-### 3. Command Line
+The fastest path — runs the proxy directly from Python, no GUI.
 
 ```bash
 # Using a preset
@@ -67,6 +45,30 @@ python proxy.py --upstream https://api.deepseek.com --api-key sk-xxx
 # Custom port
 python proxy.py --preset "DeepSeek V4 Pro" --api-key sk-xxx --port 8080
 ```
+
+### 2. Desktop GUI
+
+For a visual launcher — pick a provider, paste your API key, hit Start. Still pure Python.
+
+```bash
+# pywebview — HTML/CSS UI with brutalist design
+pip install pywebview
+python app.py
+
+# Tkinter — native macOS widgets, no extra deps
+python app_tkinter.py
+```
+
+### 3. Native macOS App (optional)
+
+Menu bar app with a full Settings window — provider selection, API key validation, model picker, logs. Built with Swift + Python backend. Requires a one-time build.
+
+```bash
+bash build.sh          # build CodexProxy.app
+open build/CodexProxy.app
+```
+
+Requires macOS 12+ and Xcode Command Line Tools (`xcode-select --install`). See `BUILD.md` for manual steps.
 
 ## Supported Providers
 
