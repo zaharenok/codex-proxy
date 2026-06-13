@@ -10,6 +10,7 @@ import os
 import pickle
 import subprocess
 import threading
+import webbrowser
 
 import requests as http_requests
 import webview
@@ -43,6 +44,11 @@ class Api:
             os.chmod(self._key_cache_path, 0o600)
         except Exception:
             pass
+
+    def open_external(self, url):
+        """Open an external URL in the system browser (links inside the webview)."""
+        webbrowser.open(url)
+        return {"ok": True}
 
     def store_key(self, preset, api_key):
         self._key_cache[preset] = api_key
@@ -213,7 +219,7 @@ def main():
     )
 
     api = Api(window)
-    window.expose(api.load_settings, api.start_proxy, api.stop_proxy, api.install_config, api.restore_config, api.open_config, api.launch_codex, api.launch_codex_app, api.validate_key, api.fetch_models, api.restore_original_config, api.save_original_config, api.store_key, api.get_key)
+    window.expose(api.load_settings, api.start_proxy, api.stop_proxy, api.install_config, api.restore_config, api.open_config, api.launch_codex, api.launch_codex_app, api.validate_key, api.fetch_models, api.restore_original_config, api.save_original_config, api.store_key, api.get_key, api.open_external)
 
     webview.start(debug=False)
 

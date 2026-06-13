@@ -353,6 +353,14 @@
     @keyframes slideIn { from { opacity:0; transform: translateX(20px); } to { opacity:1; transform: translateX(0); } }
     @keyframes fadeHint { from { opacity:0; } to { opacity:1; } }
   </style>
+  <!-- Google Analytics 4 — replace G-XXXXXXXXXX with your Measurement ID (Admin → Data Streams) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX');
+  </script>
 </head>
 <body>
 
@@ -367,6 +375,7 @@
       <h1>Codex Proxy</h1>
       <p>Responses API ↔ Chat Completions / Anthropic</p>
     </div>
+    <a id="support-btn" class="btn btn-primary" href="https://www.skool.com/ai-pays-my-bills-7018/about" target="_blank" rel="noopener" style="margin-left:auto;padding:6px 12px;font-size:10px;letter-spacing:0.08em;">SUPPORT</a>
   </div>
 
   <!-- Main config -->
@@ -728,6 +737,20 @@
         showNotice(r.ok ? 'ok' : 'err', r.message);
         addLog(r.ok ? 'ok' : 'err', r.message);
       } catch(e) { showNotice('err', e.message); }
+    });
+    document.getElementById('support-btn').addEventListener('click', (e) => {
+      const url = 'https://www.skool.com/ai-pays-my-bills-7018/about';
+      if (typeof gtag === 'function') {
+        gtag('event', 'skool_click', {
+          link_url: url,
+          link_domain: 'skool.com',
+          outbound: true
+        });
+      }
+      if (window.pywebview && pywebview.api && pywebview.api.open_external) {
+        e.preventDefault();
+        pywebview.api.open_external(url);
+      }
     });
 
     // Load saved settings
