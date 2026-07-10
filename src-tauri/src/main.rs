@@ -1,4 +1,3 @@
-// Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
@@ -6,31 +5,64 @@ mod config;
 mod proxy;
 
 use commands::*;
-use config::AppState;
-use proxy::ProxyState;
-use std::sync::Arc;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
     Manager,
 };
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "codex_proxy=info".into()),
-        )
-        .init();
+    // Set up a layered subscriber: stderr (always) + ~/.codexproxy/proxy.log
+    use std::io::Write;
+    let log_path = dirs::home_dir()
+        .map(|h| h.join(".codexproxy").join("proxy.log"))
+        .unwrap_or_else(|| std::path::PathBuf::from("proxy.log"));
 
-    let app_state = Arc::new(AppState::new());
-    let proxy_state = Arc::new(ProxyState::new());
+    // Truncate log on each start so we don't accumulate from old sessions
+    let _ = std::fs::File::create(&log_path);
+
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| "codex_proxy=info".into());
+
+    let stderr_layer = tracing_subscriber::fmt::layer()
+        .with_writer(std::io::stderr);
+
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .ok();
+    let file_layer = file.map(|f| {
+        tracing_subscriber::fmt::layer()
+            .with_writer(move || f.try_clone().expect("log file clone"))
+            .with_ansi(false)
+    });
+
+    if let Some(fl) = file_layer {
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(stderr_layer)
+            .with(fl)
+            .init();
+    } else {
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(stderr_layer)
+            .init();
+    }
+
+    eprintln!("[codex-proxy] Starting... (log: {})", log_path.display());
+    tracing::info!("=== codex-proxy started, log file: {} ===", log_path.display());
+
+    // Initialize global state
+    config::AppState::global();
+    proxy::ProxyState::global();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
-        .manage(app_state.clone())
-        .manage(proxy_state.clone())
         .setup(move |app| {
             // Build system tray
             let show_i = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
@@ -52,82 +84,10 @@ fn main() {
                                 let _ = window.set_focus();
                             }
                         }
-                        "start" => {
-                            // Start proxy with current settings
-                            let state = app.state::<AppState>();
-                            let ps = app.state::<ProxyState>();
-                            let settings = state.config.load_settings();
-                            let key = state.config.load_api_key();
-
-                            if !key.is_empty() {
-                                let api_type = if settings.upstream.contains("/anthropic") {
-                                    "anthropic".to_string()
-                                } else {
-                                    "openai".to_string()
-                                };
-
-                                tauri::async_runtime::block_on(async {
-                                    let mut base = ps.upstream_base.write().await;
-                                    *base = settings.upstream.trim_end_matches('/').to_string();
-                                    let mut mm = ps.model_map.write().await;
-                                    mm.clear();
-                                    mm.extend(settings.model_map.clone());
-                                    let mut k = ps.api_key_override.write().await;
-                                    *k = key.clone();
-                                    let mut at = ps.upstream_api_type.write().await;
-                                    *at = api_type;
-                                });
-
-                                let mut inner = state.inner.lock().unwrap();
-                                if !inner.proxy_running {
-                                    let (tx, rx) = tokio::sync::oneshot::channel::<()>();
-                                    inner.proxy_handle = Some(tx);
-                                    inner.proxy_running = true;
-
-                                    let state_clone = (*ps).clone();
-                                    let port = settings.port;
-                                    tauri::async_runtime::spawn(async move {
-                                        let router = proxy::build_router(state_clone);
-                                        let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", port)).await;
-                                        match listener {
-                                            Ok(listener) => {
-                                                tracing::info!("Proxy server started on port {}", port);
-                                                axum::serve(listener, router)
-                                                    .with_graceful_shutdown(async move {
-                                                        rx.await.ok();
-                                                    })
-                                                    .await.ok();
-                                                tracing::info!("Proxy server stopped");
-                                            }
-                                            Err(e) => {
-                                                tracing::error!("Failed to start proxy: {}", e);
-                                            }
-                                        }
-                                    });
-                                }
-                            }
+                        "start" | "stop" => {
+                            // These are handled via the WebView UI commands
                         }
-                        "stop" => {
-                            let state = app.state::<AppState>();
-                            let ps = app.state::<ProxyState>();
-                            {
-                                let mut inner = state.inner.lock().unwrap();
-                                if let Some(handle) = inner.proxy_handle.take() {
-                                    let _ = handle.send(());
-                                }
-                                inner.proxy_running = false;
-                            }
-                            {
-                                let ps_clone = ps.inner().clone();
-                                tauri::async_runtime::block_on(async {
-                                    let mut base = ps_clone.upstream_base.write().await;
-                                    *base = String::new();
-                                });
-                            }
-                        }
-                        "quit" => {
-                            app.exit(0);
-                        }
+                        "quit" => { app.exit(0); }
                         _ => {}
                     }
                 })
@@ -136,6 +96,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            ping,
             load_settings,
             save_settings,
             start_proxy,
@@ -149,6 +110,9 @@ fn main() {
             open_logs,
             launch_codex_cli,
             launch_codex_app,
+            store_key,
+            get_key,
+            save_original_config,
             get_presets_list,
             get_preset_url,
         ])

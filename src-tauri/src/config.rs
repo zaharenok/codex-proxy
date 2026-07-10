@@ -160,6 +160,14 @@ impl Config {
                 past_top_level = true;
             }
 
+            // Drop top-level `model = "..."` (before any section header).
+            // Codex (with a ChatGPT account) validates the slug against its
+            // own catalog and rejects unknown ones. We want Codex to fall
+            // back to its own built-in default instead of our user-set one.
+            if !past_top_level && trimmed.starts_with("model =") {
+                continue;
+            }
+
             new_lines.push(line.to_string());
         }
 
@@ -337,12 +345,12 @@ mod tests {
     }
 
     #[test]
-    fn install_preserves_users_top_level_model() {
-        // We MUST NOT override the user's top-level `model =` line, because
+    fn install_drops_top_level_model_to_let_codex_pick_default() {
+        // We DROP the user's top-level `model =` line on install, because
         // Codex (with ChatGPT auth) validates the slug against its own
-        // catalog and rejects unknown ones with "model is not supported
-        // when using Codex with a ChatGPT account." Let Codex pick its own
-        // default and translate via the proxy's model_map.
+        // catalog and rejects unknown ones (e.g. "gpt-5.4", "gpt-4o") with
+        // "model is not supported when using Codex with a ChatGPT account."
+        // Removing the line forces Codex to use its own built-in default.
         let tmp = tempdir();
         let cfg = make_config_in(&tmp);
         let toml = r#"model = "gpt-5.4"
@@ -354,7 +362,8 @@ notify = ["x"]
         cfg.install_codex_config(9090, "fake_key").unwrap();
         let result = std::fs::read_to_string(&cfg.codex_config).unwrap();
 
-        assert!(result.contains(r#"model = "gpt-5.4""#), "user's top-level model should be preserved, got:\n{}", result);
+        assert!(!result.contains(r#"model = "gpt-5.4""#), "top-level model should be removed, got:\n{}", result);
+        assert!(result.contains(r#"model_reasoning_effort = "high""#), "other top-level keys preserved");
         assert!(result.contains(r#"model_provider = "codex-proxy""#));
         assert!(result.contains("[model_providers.codex-proxy]"));
         assert!(result.contains("[profiles.proxy]"));
@@ -379,12 +388,34 @@ enabled = true
         cfg.install_codex_config(9090, "fake_key").unwrap();
         let result = std::fs::read_to_string(&cfg.codex_config).unwrap();
 
-        assert!(result.contains(r#"model = "gpt-5.4""#));
+        assert!(!result.contains(r#"model = "gpt-5.4""#), "top-level model should be dropped");
         assert!(result.contains(r#"model_provider = "codex-proxy""#));
         assert!(!result.contains(r#"model_provider = "openai""#), "old model_provider should be replaced");
         assert!(result.contains(r#"[projects."/some/path"]"#));
         assert!(result.contains(r#"[plugins."github@openai-curated"]"#));
         assert!(result.contains("trust_level = \"trusted\""));
+    }
+
+    #[test]
+    fn install_preserves_model_inside_sections() {
+        // `model =` lines that appear inside a section (not at top level)
+        // must be preserved — those are per-profile or per-something settings
+        // and are not what Codex uses as its default for the ChatGPT account.
+        let tmp = tempdir();
+        let cfg = make_config_in(&tmp);
+        let toml = r#"model = "gpt-5.4"
+[profiles.team]
+model = "gpt-5.5"
+trust_level = "trusted"
+"#;
+        std::fs::write(&cfg.codex_config, toml).unwrap();
+
+        cfg.install_codex_config(9090, "fake_key").unwrap();
+        let result = std::fs::read_to_string(&cfg.codex_config).unwrap();
+
+        assert!(!result.contains(r#"^model = "gpt-5.4""#), "top-level model should be removed");
+        assert!(result.contains(r#"[profiles.team]"#), "user section preserved");
+        assert!(result.contains(r#"model = "gpt-5.5""#), "in-section model preserved");
     }
 
     #[test]
@@ -403,7 +434,8 @@ enabled = true
 
         assert!(!after_restore.contains("codex-proxy"), "proxy section should be removed, got:\n{}", after_restore);
         assert!(!after_restore.contains("# --- CODEX PROXY"));
-        assert!(after_restore.contains("model = \"gpt-5.4\""), "original gpt-5.4 should be restored");
+        // The original is restored from the pristine backup, so `model = "gpt-5.4"` is back.
+        assert!(after_restore.contains("model = \"gpt-5.4\""), "original gpt-5.4 should be restored from backup");
         assert!(after_restore.contains("notify = [\"x\"]"));
     }
 
