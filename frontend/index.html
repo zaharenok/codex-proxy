@@ -363,6 +363,109 @@
   </script>
 </head>
 <body>
+<script>
+/* Tauri bridge — fallback for start/stop only, HTTP via fetch */
+/* Tauri IPC via __TAURI__.core.invoke (correct Tauri v2 API) */
+function tauriInvoke(cmd,args){
+ var invokeFn=null;
+ if(window.__TAURI__&&window.__TAURI__.core&&window.__TAURI__.core.invoke)
+  invokeFn=window.__TAURI__.core.invoke;
+ else if(window.__TAURI_INTERNALS__&&window.__TAURI_INTERNALS__.invoke)
+  invokeFn=window.__TAURI_INTERNALS__.invoke;
+ if(invokeFn){
+  try{return invokeFn(cmd,args||{});}catch(e){console.error('tauriInvoke',cmd,e);}
+ }
+ return Promise.reject(new Error('Tauri IPC unavailable'));
+}
+
+/* IPC connectivity test */
+(function(){
+ var dbg=document.getElementById('status-label');
+ if(window.__TAURI__&&window.__TAURI__.core) {
+  if(dbg) dbg.textContent='IPC: testing...';
+  window.__TAURI__.core.invoke('ping').then(function(r){
+   if(dbg) dbg.textContent='IPC: ping OK';
+   addLog('ok','Tauri IPC working: ping='+r);
+  }).catch(function(e){
+   if(dbg) dbg.textContent='IPC: FAIL';
+   addLog('err','IPC ping failed: '+e);
+  });
+ } else if(window.__TAURI_INTERNALS__) {
+  if(dbg) dbg.textContent='IPC: OLD API';
+ } else {
+  if(dbg) dbg.textContent='IPC: NONE';
+ }
+})();
+
+/* Direct fetch for key validation & model listing (bypasses Tauri IPC) */
+const PRESET_BASES={
+ 'z.ai':{url:'https://api.z.ai/api/anthropic',api:'anthropic'},
+ 'DeepSeek V4 Pro':{url:'https://api.deepseek.com',api:'openai'},
+ 'OpenRouter':{url:'https://openrouter.ai/api/v1',api:'openai'},
+ 'MiniMax':{url:'https://api.minimax.chat/v1',api:'openai'},
+ 'OpenCode Go':{url:'https://opencode.ai/zen/go/v1',api:'openai'},
+ 'LM Studio':{url:'http://localhost:1234/v1',api:'openai'},
+ 'Ollama':{url:'http://localhost:11434/v1',api:'openai'},
+};
+function getBaseUrl(preset,upstream){
+ var p=PRESET_BASES[preset];
+ return p?p.url:(upstream||'').replace(/\/$/,'');
+}
+
+/* Build pywebview.api stub */
+window.pywebview={api:{
+ start_proxy:function(p,u,k,pt,m){
+  return tauriInvoke('start_proxy',{args:{preset:p,upstream:u,apiKey:k,port:pt,selectedModel:m}});
+ },
+ stop_proxy:function(){return tauriInvoke('stop_proxy');},
+ validate_key:async function(preset,apiKey,upstream){
+  try{
+   var r=await tauriInvoke('validate_key',{args:{preset:preset,apiKey:apiKey,upstream:upstream}});
+   addLog('info','validate_key result: valid='+r.valid+' status='+r.status+' error='+r.error);
+   return r;
+  }catch(e){
+   addLog('err','validate_key invoke ERROR: '+(e.message||e));
+  }
+  var base=getBaseUrl(preset,upstream);
+  if(!base) return {valid:false,error:'Unknown preset'};
+  try{
+   var r=await fetch(base+'/models',{headers:{'Authorization':'Bearer '+apiKey}});
+   return {valid:r.ok,status:r.status};
+  }catch(e){return {valid:false,error:e.message};}
+ },
+ fetch_models:async function(preset,apiKey,upstream){
+  try{
+   var r=await tauriInvoke('fetch_models',{args:{preset:preset,apiKey:apiKey,upstream:upstream}});
+   addLog('info','fetch_models result: '+r.models.length+' models, error='+r.error);
+   return r;
+  }catch(e){
+   addLog('err','fetch_models invoke ERROR: '+(e.message||e));
+  }
+  var base=getBaseUrl(preset,upstream);
+  if(!base) return {models:[],error:'Unknown preset'};
+  try{
+   var r=await fetch(base+'/models',{headers:{'Authorization':'Bearer '+apiKey}});
+   if(!r.ok) return {models:[],error:'HTTP '+r.status};
+   var d=await r.json();
+   var models=(d.data||[]).map(function(m){return m.id;});
+   return {models:models};
+  }catch(e){return {models:[],error:e.message};}
+ },
+ load_settings:function(){return tauriInvoke('load_settings');},
+ save_settings:function(s){return tauriInvoke('save_settings',{settings:s});},
+ store_key:function(p,k){return tauriInvoke('store_key',{preset:p,key:k});},
+ get_key:function(p){return tauriInvoke('get_key',{preset:p});},
+ install_config:function(p){return tauriInvoke('install_config',{port:p});},
+ restore_config:function(){return tauriInvoke('restore_config');},
+ restore_original_config:function(){return tauriInvoke('restore_original_config');},
+ launch_codex:function(){return tauriInvoke('launch_codex_cli');},
+ launch_codex_app:function(){return tauriInvoke('launch_codex_app');},
+ open_config:function(){return tauriInvoke('open_config_folder');},
+ save_original_config:function(){return tauriInvoke('save_original_config');},
+ open_external:function(u){window.open(u,'_blank');}
+}};
+window.dispatchEvent(new Event('pywebviewready'));
+</script>
 
   <!-- Header -->
   <div class="header">
@@ -516,7 +619,7 @@
       'DeepSeek V4 Pro': { url: 'https://api.deepseek.com',                 api_type: 'openai' },
       'OpenRouter':      { url: 'https://openrouter.ai/api/v1',             api_type: 'openai' },
       'MiniMax':         { url: 'https://api.minimax.chat/v1',              api_type: 'openai' },
-      'OpenCode Go':     { url: 'https://opencode.ai/zen/go',                 api_type: 'openai' },
+      'OpenCode Go':     { url: 'https://opencode.ai/zen/go/v1',               api_type: 'openai' },
       'LM Studio':       { url: 'http://localhost:1234/v1',                 api_type: 'openai' },
       'Ollama':          { url: 'http://localhost:11434/v1',                api_type: 'openai' },
     };

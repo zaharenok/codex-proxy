@@ -3,13 +3,14 @@
   "productName": "Codex Proxy",
   "version": "1.0.0",
   "identifier": "com.codexproxy",
-    "build": {
-    "frontendDist": "../src",
+  "build": {
+    "frontendDist": "web",
     "devUrl": "http://localhost:1420",
     "beforeDevCommand": "",
     "beforeBuildCommand": ""
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "Codex Proxy",

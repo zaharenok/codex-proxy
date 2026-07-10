@@ -9,6 +9,7 @@ import json
 import os
 import pickle
 import subprocess
+import sys
 import threading
 import webbrowser
 
@@ -16,6 +17,7 @@ import requests as http_requests
 import webview
 
 from config import install_codex_config, load_api_key, load_settings, restore_original_config, save_api_key, save_settings
+from intercept import start_interception, stop_interception
 from proxy import PRESETS, configure, start_server, stop_server
 
 
@@ -70,14 +72,17 @@ class Api:
             "selected_model": s.get("selected_model"),
         }
 
-    def _models_base(self, preset):
+    def _models_base(self, preset, upstream=""):
         p = PRESETS.get(preset)
-        if not p:
-            return None
-        return (p.get("models_url") or p["url"]).rstrip("/")
+        if p:
+            return (p.get("models_url") or p["url"]).rstrip("/")
+        # Custom provider: fall back to the upstream URL the user typed in.
+        if upstream:
+            return upstream.rstrip("/")
+        return None
 
-    def validate_key(self, preset, api_key):
-        base = self._models_base(preset)
+    def validate_key(self, preset, api_key, upstream=""):
+        base = self._models_base(preset, upstream)
         if not base:
             return {"valid": False, "error": "Unknown preset"}
         try:
@@ -90,8 +95,8 @@ class Api:
         except Exception as e:
             return {"valid": False, "error": str(e)}
 
-    def fetch_models(self, preset, api_key):
-        base = self._models_base(preset)
+    def fetch_models(self, preset, api_key, upstream=""):
+        base = self._models_base(preset, upstream)
         if not base:
             return {"models": [], "error": "Unknown preset"}
         try:
@@ -103,6 +108,10 @@ class Api:
             if resp.status_code == 200:
                 data = resp.json()
                 models = sorted(m["id"] for m in data.get("data", []))
+                # Router-style custom upstreams (e.g. freellmapi) accept "auto"
+                # to let them pick a model — surface it as the first choice.
+                if preset not in PRESETS and "auto" not in models:
+                    models = ["auto"] + models
                 return {"models": models}
             return {"models": [], "error": f"HTTP {resp.status_code}"}
         except Exception as e:
@@ -122,6 +131,12 @@ class Api:
             api_type = p.get("api_type", "openai")
         else:
             api_type = "anthropic" if "/anthropic" in upstream else "openai"
+            # Custom OpenAI-compatible upstream: map every model name Codex
+            # might send (the profile pins `gpt-5.4`) onto the model the user
+            # picked, defaulting to "auto" (router picks). Keeps /v1/models
+            # non-empty and rewrites the name before it reaches upstream.
+            target = selected_model or "auto"
+            model_map = {k: target for k in ("gpt-5.4", "gpt-5.4-mini", "gpt-4o", "gpt-4o-mini")}
 
         if selected_model and model_map:
             for k in model_map:
@@ -147,11 +162,35 @@ class Api:
         if not update_api_key_in_config(api_key):
             install_codex_config(port, api_key)
 
+        # Set environment variable for Codex Desktop App via launchctl
+        try:
+            subprocess.run(["launchctl", "setenv", "CODEX_PROXY_API_KEY", api_key], check=False)
+        except Exception:
+            pass  # Non-critical
+
+        # Start HTTPS interception (hosts + pf + socat SSL) so Codex Desktop
+        # conversations are also routed through our proxy.
+        try:
+            start_interception()
+        except Exception as e:
+            print(f"[app] WARN: interception setup failed: {e}")
+
         return {"ok": True, "upstream": upstream}
 
     def stop_proxy(self):
+        # Tear down HTTPS interception first
+        try:
+            stop_interception()
+        except Exception as e:
+            print(f"[app] WARN: interception teardown failed: {e}")
+
         stop_server()
         restore_original_config()
+        # Unset environment variable for Codex Desktop App
+        try:
+            subprocess.run(["launchctl", "unsetenv", "CODEX_PROXY_API_KEY"], check=False)
+        except Exception:
+            pass  # Non-critical
         return {"ok": True}
 
     def install_config(self, port):
@@ -208,6 +247,10 @@ class Api:
 
 def main():
     html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "codex-proxy-redesign.html")
+
+    if not os.path.exists(html_path):
+        print(f"ERROR: HTML file not found at {html_path}")
+        sys.exit(1)
 
     window = webview.create_window(
         title="Codex Proxy",

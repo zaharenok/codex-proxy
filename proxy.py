@@ -75,11 +75,15 @@ PRESETS: dict[str, dict] = {
             "gpt-4o-mini": "minimax-m2",
         },
     },
-    "OpenCode": {
-        "url": "https://opencode.ai/ru/go",
+    "OpenCode Go": {
+        "url": "https://opencode.ai/zen/go/v1",
         "models": {
-            "gpt-5.4": "deepseek/deepseek-chat-v3-0324",
-            "gpt-5.4-mini": "deepseek/deepseek-chat-v3-0324",
+            "gpt-5.6": "deepseek-v4-pro",
+            "gpt-5.5": "deepseek-v4-pro",
+            "gpt-5.4": "deepseek-v4-pro",
+            "gpt-5.4-mini": "deepseek-v4-flash",
+            "gpt-4o": "deepseek-v4-pro",
+            "gpt-4o-mini": "deepseek-v4-flash",
         },
     },
     "LM Studio": {

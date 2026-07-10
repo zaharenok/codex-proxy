@@ -31,5 +31,3 @@ CodexProxy.app/
 
 # Tauri build artifacts
 src-tauri/target/
-src-tauri/icons/
-!src-tauri/icons/.gitkeep

@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  codex-proxy:
+    build: .
+    container_name: codex-proxy
+    ports:
+      - "9090:9090"
+    environment:
+      - CODEX_PROXY_API_KEY=${CODEX_PROXY_API_KEY}
+      - UPSTREAM_URL=${UPSTREAM_URL:-http://host.docker.internal:3001/v1}
+      - PORT=9090
+    restart: unless-stopped
+    # For macOS host.docker.internal to work
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # Optional: if you also want to run your upstream in docker
+  # upstream:
+  #   image: your-upstream-image
+  #   ports:
+  #     - "3001:3001"
+  #   environment:
+  #     - CODEX_PROXY_API_KEY=${CODEX_PROXY_API_KEY}
