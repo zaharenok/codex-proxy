@@ -5,6 +5,17 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 
+// Helper: validate that a TOML file is parseable. Used as a safety check
+// after we mutate ~/.codex/config.toml so we can roll back if our install
+// produced something Codex can't load.
+fn validate_toml_file(path: &std::path::Path) -> bool {
+    let content = match fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    content.parse::<toml::Table>().is_ok()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     pub preset: String,
@@ -151,7 +162,12 @@ impl Config {
                 continue;
             }
             if trimmed.starts_with("model_provider = \"codex-proxy\"") {
-                found_proxy_provider = true;
+                // Top-level proxy directive (we control) — mark as found and
+                // keep. Inside a user section, we NEVER touch it, but we also
+                // don't need to mark found_proxy_provider there.
+                if !past_top_level {
+                    found_proxy_provider = true;
+                }
                 new_lines.push(line.to_string());
                 continue;
             }
@@ -202,6 +218,21 @@ model_provider = "codex-proxy"
 
         let result = new_lines.join("\n") + "\n" + &proxy_section;
         fs::write(&self.codex_config, &result)?;
+
+        // Safety check: if our edits produced invalid TOML (e.g. a duplicate
+        // key somewhere), restore from the backup and bail out so we don't
+        // leave the user with a broken Codex config.
+        if !validate_toml_file(&self.codex_config) {
+            let backup = self.config_dir.join("config.toml.original");
+            if backup.exists() {
+                let _ = fs::copy(&backup, &self.codex_config);
+            }
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Refusing to leave an invalid config.toml; restored from backup",
+            ));
+        }
+
         Ok(true)
     }
 
@@ -416,6 +447,40 @@ trust_level = "trusted"
         assert!(!result.contains(r#"^model = "gpt-5.4""#), "top-level model should be removed");
         assert!(result.contains(r#"[profiles.team]"#), "user section preserved");
         assert!(result.contains(r#"model = "gpt-5.5""#), "in-section model preserved");
+    }
+
+    #[test]
+    fn install_rolls_back_if_result_is_invalid_toml() {
+        // Defensive: if for any reason our install produces invalid TOML,
+        // we must restore the pristine backup and refuse to leave a broken
+        // config. This guards against future code changes (or external
+        // processes) that introduce duplicate keys.
+        let tmp = tempdir();
+        let cfg = make_config_in(&tmp);
+        let good_toml = r#"model = "gpt-5.4"
+notify = ["x"]
+"#;
+        std::fs::write(&cfg.codex_config, good_toml).unwrap();
+        // First install — saves backup
+        let result = cfg.install_codex_config(9090, "fake_key");
+        assert!(result.is_ok(), "first install should succeed");
+
+        // Now manually corrupt the file to simulate a future bug
+        let corrupted = r#"
+[profiles.m27]
+model = "glm-4.7"
+model_provider = "zai"
+model_provider = "codex-proxy"
+"#;
+        std::fs::write(&cfg.codex_config, corrupted).unwrap();
+
+        // Re-install should detect the corruption and roll back from the
+        // backup we saved on the first install.
+        let result = cfg.install_codex_config(9090, "fake_key");
+        assert!(result.is_err(), "install should refuse invalid TOML");
+        let restored = std::fs::read_to_string(&cfg.codex_config).unwrap();
+        assert!(restored.contains(r#"model = "gpt-5.4""#), "should restore from backup");
+        assert!(!restored.contains("duplicate"), "no duplicate in restored");
     }
 
     #[test]
