@@ -83,8 +83,15 @@ impl Config {
     }
 
     /// Install Codex proxy config — raw text manipulation (like Python version)
-    /// Overrides top-level `model = "gpt-4o"` so Codex (with ChatGPT auth) accepts
-    /// the model name; the proxy's model_map translates gpt-4o → upstream model.
+    ///
+    /// Important: do NOT override the top-level `model =` line. Codex (with a
+    /// ChatGPT account) validates the model name against its own allowed
+    /// catalog and rejects unknown slugs with
+    /// "The '<model>' model is not supported when using Codex with a ChatGPT
+    /// account." Hard-coding a slug we like (e.g. "gpt-4o") triggers that
+    /// rejection. Instead, let Codex use its own default (e.g. "gpt-5.5")
+    /// and rely on the proxy's `resolve_model` to translate that to the
+    /// upstream provider's model id.
     pub fn install_codex_config(&self, port: u16, _api_key: &str) -> io::Result<bool> {
         let codex_dir = self.codex_config.parent().unwrap();
         fs::create_dir_all(codex_dir)?;
@@ -104,8 +111,8 @@ impl Config {
         let mut new_lines: Vec<String> = Vec::new();
         let mut skip_until_next_section = false;
         let mut found_proxy_provider = false;
-        let mut found_top_level_model = false;
-        let mut replaced_top_level_model = false;
+        let mut replaced_model_provider = false;
+        let mut past_top_level = false;
 
         for line in existing.lines() {
             let trimmed = line.trim();
@@ -123,38 +130,37 @@ impl Config {
                 skip_until_next_section = true;
                 continue;
             }
-            if trimmed == r#"model_provider = "codex-proxy""# {
-                found_proxy_provider = true;
-                continue;
-            }
 
             // Stop skipping when we hit a new section
             if skip_until_next_section {
                 if trimmed.starts_with('[') && !trimmed.starts_with("[[" ) {
                     skip_until_next_section = false;
                     new_lines.push(line.to_string());
+                    past_top_level = true;
                 }
                 continue;
             }
 
-            // Override top-level `model = "..."` (only the first one we see at top level)
-            if trimmed.starts_with("model =") && !found_top_level_model {
-                found_top_level_model = true;
-                new_lines.push(r#"model = "gpt-4o""#.to_string());
-                replaced_top_level_model = true;
+            // Replace top-level `model_provider = "..."` with our proxy id (once)
+            if !past_top_level
+                && trimmed.starts_with("model_provider =")
+                && !trimmed.starts_with("model_provider = \"codex-proxy\"")
+            {
+                new_lines.push(r#"model_provider = "codex-proxy""#.to_string());
+                replaced_model_provider = true;
                 continue;
             }
-            // First top-level key — if no model line, we'll add it
+            if trimmed.starts_with("model_provider = \"codex-proxy\"") {
+                found_proxy_provider = true;
+                new_lines.push(line.to_string());
+                continue;
+            }
+            // Once we cross into the first section, stop trying to touch top-level keys
             if trimmed.starts_with('[') && !trimmed.starts_with("[[" ) {
-                found_top_level_model = true; // we're past the top-level zone
+                past_top_level = true;
             }
 
             new_lines.push(line.to_string());
-        }
-
-        // If the file had no top-level model at all, prepend one
-        if !replaced_top_level_model && !found_top_level_model {
-            new_lines.insert(0, r#"model = "gpt-4o""#.to_string());
         }
 
         // Remove trailing empty lines
@@ -162,8 +168,8 @@ impl Config {
             if last.trim().is_empty() { new_lines.pop(); } else { break; }
         }
 
-        // Add proxy config
-        if !found_proxy_provider {
+        // Add proxy config (if not already present)
+        if !found_proxy_provider && !replaced_model_provider {
             new_lines.push(r#"model_provider = "codex-proxy""#.to_string());
         }
 
@@ -178,8 +184,10 @@ env_key = "CODEX_PROXY_API_KEY"
 requires_openai_auth = true
 
 [profiles.proxy]
-model = "gpt-4o"
 model_provider = "codex-proxy"
+# Note: no `model =` here. Codex (with ChatGPT auth) rejects any slug it
+# doesn't recognise. We let Codex pick its default; the proxy's model_map
+# translates it to the upstream provider's model.
 "#,
             port
         );
@@ -329,7 +337,12 @@ mod tests {
     }
 
     #[test]
-    fn install_overrides_top_level_model_to_gpt4o() {
+    fn install_preserves_users_top_level_model() {
+        // We MUST NOT override the user's top-level `model =` line, because
+        // Codex (with ChatGPT auth) validates the slug against its own
+        // catalog and rejects unknown ones with "model is not supported
+        // when using Codex with a ChatGPT account." Let Codex pick its own
+        // default and translate via the proxy's model_map.
         let tmp = tempdir();
         let cfg = make_config_in(&tmp);
         let toml = r#"model = "gpt-5.4"
@@ -341,8 +354,7 @@ notify = ["x"]
         cfg.install_codex_config(9090, "fake_key").unwrap();
         let result = std::fs::read_to_string(&cfg.codex_config).unwrap();
 
-        assert!(result.contains(r#"model = "gpt-4o""#), "expected top-level model override, got:\n{}", result);
-        assert!(!result.contains(r#"model = "gpt-5.4""#), "old gpt-5.4 should be gone");
+        assert!(result.contains(r#"model = "gpt-5.4""#), "user's top-level model should be preserved, got:\n{}", result);
         assert!(result.contains(r#"model_provider = "codex-proxy""#));
         assert!(result.contains("[model_providers.codex-proxy]"));
         assert!(result.contains("[profiles.proxy]"));
@@ -367,7 +379,9 @@ enabled = true
         cfg.install_codex_config(9090, "fake_key").unwrap();
         let result = std::fs::read_to_string(&cfg.codex_config).unwrap();
 
-        assert!(result.contains(r#"model = "gpt-4o""#));
+        assert!(result.contains(r#"model = "gpt-5.4""#));
+        assert!(result.contains(r#"model_provider = "codex-proxy""#));
+        assert!(!result.contains(r#"model_provider = "openai""#), "old model_provider should be replaced");
         assert!(result.contains(r#"[projects."/some/path"]"#));
         assert!(result.contains(r#"[plugins."github@openai-curated"]"#));
         assert!(result.contains("trust_level = \"trusted\""));

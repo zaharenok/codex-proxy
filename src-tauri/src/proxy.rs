@@ -19,7 +19,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tokio::sync::RwLock;
 use tracing::{error, info};
 
@@ -85,16 +85,18 @@ pub fn get_presets() -> HashMap<&'static str, Preset> {
         },
     );
     m.insert(
-        "OpenCode",
+        "OpenCode Go",
         Preset {
-            url: "https://go.opencode.ai",
-            models_url: None,
+            url: "https://opencode.ai/zen/go/v1",
+            models_url: Some("https://opencode.ai/zen/go/v1"),
             api_type: "openai",
             models: &[
-                ("gpt-5.4", "gpt-5.4"),
-                ("gpt-5.4-mini", "gpt-5.4-mini"),
-                ("gpt-4o", "gpt-5.4"),
-                ("gpt-4o-mini", "gpt-5.4-mini"),
+                ("gpt-5.6", "deepseek-v4-pro"),
+                ("gpt-5.5", "deepseek-v4-pro"),
+                ("gpt-5.4", "deepseek-v4-pro"),
+                ("gpt-5.4-mini", "deepseek-v4-flash"),
+                ("gpt-4o", "deepseek-v4-pro"),
+                ("gpt-4o-mini", "deepseek-v4-flash"),
             ],
         },
     );
@@ -207,6 +209,11 @@ pub struct ProxyState {
 }
 
 impl ProxyState {
+    pub fn global() -> &'static ProxyState {
+        static GLOBAL: OnceLock<ProxyState> = OnceLock::new();
+        GLOBAL.get_or_init(|| ProxyState::new())
+    }
+
     pub fn new() -> Self {
         Self {
             upstream_base: Arc::new(RwLock::new(String::new())),
@@ -232,8 +239,10 @@ impl ProxyState {
         if let Some(mapped) = map.get(model) {
             return mapped.clone();
         }
-        // Fallback: unknown gpt-* → first mapped value
-        if model.starts_with("gpt-") && !map.is_empty() {
+        // Fallback: ANY unknown model name (Codex may send a ChatGPT-account
+        // default like "gpt-5.5" or "gpt-5.6" we didn't pre-register) →
+        // first mapped value in the preset.
+        if !map.is_empty() {
             return map.values().next().cloned().unwrap_or_else(|| model.to_string());
         }
         model.to_string()
@@ -735,12 +744,18 @@ pub async fn handle_responses(
         .unwrap_or("");
     let key = if auth.starts_with("Bearer ") {
         auth.trim_start_matches("Bearer ").to_string()
-    } else {
+    } else if !state.api_key_override.read().await.is_empty() {
         state.api_key_override.read().await.clone()
+    } else if let Ok(env_key) = std::env::var("CODEX_PROXY_API_KEY") {
+        if !env_key.is_empty() { env_key } else { String::new() }
+    } else {
+        String::new()
     };
     if key.is_empty() {
+        info!("REQ REJECTED: no API key (auth={:?}, upstream={})", auth, upstream_base);
         return Err((StatusCode::UNAUTHORIZED, Json(json!({"error": {"message": "No API key"}}))));
     }
+    info!("REQ AUTH: key_len={}", key.len());
 
     let body_val: Value = serde_json::from_str(&body).map_err(|e| {
         (StatusCode::BAD_REQUEST, Json(json!({"error": {"message": format!("Bad JSON: {}", e)}})))
@@ -944,7 +959,16 @@ async fn stream_openai(
         if !http_status.is_success() {
             let text = resp.text().await.unwrap_or_default();
             error!("UPSTREAM {}: {}", http_status, &text[..text.len().min(500)]);
-            yield Ok(Event::default().event("error").data(text));
+            yield Ok(Event::default().event("error").data(format!("Upstream {}: {}", http_status, &text[..text.len().min(500)])));
+            yield Ok(Event::default().event("response.completed").data(serde_json::to_string(&json!({
+                "type": "response.completed",
+                "response": {
+                    "id": &resp_id, "object": "response", "created_at": chrono::Utc::now().timestamp(),
+                    "model": &model, "status": "failed", "output": [],
+                    "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+                    "metadata": {},
+                }
+            })).unwrap()));
             return;
         }
 
@@ -1218,7 +1242,16 @@ async fn stream_anthropic(
         if !http_status.is_success() {
             let text = resp.text().await.unwrap_or_default();
             error!("ANTHROPIC UPSTREAM {}: {}", http_status, &text[..text.len().min(500)]);
-            yield Ok(Event::default().event("error").data(text));
+            yield Ok(Event::default().event("error").data(format!("Upstream {}: {}", http_status, &text[..text.len().min(500)])));
+            yield Ok(Event::default().event("response.completed").data(serde_json::to_string(&json!({
+                "type": "response.completed",
+                "response": {
+                    "id": &resp_id, "object": "response", "created_at": chrono::Utc::now().timestamp(),
+                    "model": &model, "status": "failed", "output": [],
+                    "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+                    "metadata": {},
+                }
+            })).unwrap()));
             return;
         }
 
