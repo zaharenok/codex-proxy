@@ -50,15 +50,28 @@ def _ensure_cert():
 def _install_cert():
     """Install the self-signed cert as trusted (system keychain)."""
     _ensure_cert()
-    # Check if already installed
+    # Read the current cert fingerprint for comparison
+    fp = subprocess.run(
+        ["openssl", "x509", "-in", str(CERT_FILE), "-noout", "-fingerprint", "-sha256"],
+        capture_output=True, text=True,
+    ).stdout.strip()
+    # Check if the installed cert matches our file
     r = subprocess.run(
-        ["security", "find-certificate", "-c", "api.openai.com"],
-        capture_output=True,
+        ["security", "find-certificate", "-c", "api.openai.com", "-p"],
+        capture_output=True, text=True,
     )
-    if r.returncode == 0 and b"api.openai.com" in r.stdout:
-        print("[intercept] Cert already trusted")
-        return True
-    # Install — macOS will prompt for password via GUI
+    if r.returncode == 0 and r.stdout:
+        # Compare fingerprints
+        installed_fp = subprocess.run(
+            ["openssl", "x509", "-fingerprint", "-sha256", "-noout"],
+            input=r.stdout, capture_output=True, text=True,
+        ).stdout.strip()
+        if fp == installed_fp:
+            print("[intercept] Cert already trusted (same fingerprint)")
+            return True
+    # Remove old cert and install new one
+    subprocess.run(["sudo", "security", "delete-certificate", "-c", "api.openai.com"],
+                   capture_output=True)
     r = subprocess.run([
         "sudo", "security", "add-trusted-cert", "-d", "-r", "trustRoot",
         "-k", "/Library/Keychains/System.keychain",
@@ -117,6 +130,8 @@ def _ensure_socat():
     if "socat" in r.stdout:
         print(f"[intercept] socat already running on {SOCAT_SSL_PORT}")
         return True
+    # Kill stale socat just in case
+    subprocess.run(["pkill", "-f", "socat.*OPENSSL-LISTEN"], capture_output=True)
     # Check socat is installed
     if not shutil.which("socat"):
         print("[intercept] ERROR: socat not found. Install: brew install socat")
@@ -148,18 +163,33 @@ def _kill_socat():
 
 def _ensure_pf():
     """Set up pf redirect: port 443 → SOCAT_SSL_PORT."""
-    # Create pf anchor rules
     rule = (
         f"rdr pass on lo0 inet proto tcp from any to 127.0.0.1 port 443 "
         f"-> 127.0.0.1 port {SOCAT_SSL_PORT}"
     )
+    # Ensure rdr-anchor is in pf.conf (one-time)
+    try:
+        with open("/etc/pf.conf") as f:
+            content = f.read()
+        if 'rdr-anchor "codex-proxy"' not in content:
+            # Add after rdr-anchor "com.apple/*"
+            content = content.replace(
+                'rdr-anchor "com.apple/*"',
+                'rdr-anchor "com.apple/*"\nrdr-anchor "codex-proxy"',
+            )
+            subprocess.run(["sudo", "tee", "/etc/pf.conf"],
+                           input=content.encode(), capture_output=True)
+            # Reload pf.conf
+            subprocess.run(["sudo", "pfctl", "-f", "/etc/pf.conf"], capture_output=True)
+    except PermissionError:
+        pass
+    # Load rules into anchor (must come after pf.conf reload)
     r = subprocess.run(
         ["sudo", "pfctl", "-a", PF_ANCHOR, "-f", "-"],
         input=rule + "\n", capture_output=True, text=True,
     )
     if r.returncode == 0:
-        print(f"[intercept] pf redirect 443 → {SOCAT_SSL_PORT}")
-        # Ensure pf is enabled
+        print(f"[intercept] pf redirect 443 \u2192 {SOCAT_SSL_PORT}")
         subprocess.run(["sudo", "pfctl", "-e"], capture_output=True)
         return True
     print(f"[intercept] WARN: pf setup failed: {r.stderr.strip()}")
